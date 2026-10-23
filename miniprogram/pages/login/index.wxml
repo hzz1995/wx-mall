@@ -1,0 +1,39 @@
+<view class="login">
+  <view class="brand">
+    <view class="brand-mark">铺</view>
+    <view class="brand-name">{{shopName}}</view>
+    <view class="brand-sub">商品浏览与订单记录</view>
+  </view>
+
+  <view class="card form-card">
+    <view class="field">
+      <view class="field-label required">手机号</view>
+      <input
+        class="field-input"
+        type="number"
+        maxlength="11"
+        placeholder="请输入手机号"
+        placeholder-class="field-placeholder"
+        value="{{phone}}"
+        bindinput="onPhoneInput"
+      />
+    </view>
+    <view class="field">
+      <view class="field-label required">密码</view>
+      <input
+        class="field-input"
+        password="{{!showPassword}}"
+        maxlength="32"
+        placeholder="请输入密码"
+        placeholder-class="field-placeholder"
+        value="{{password}}"
+        bindinput="onPasswordInput"
+      />
+      <view class="eye" bindtap="togglePassword">{{showPassword ? '隐藏' : '显示'}}</view>
+    </view>
+  </view>
+
+  <button class="btn btn-primary login-btn" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submit">
+    {{submitting ? '登录中…' : '登录'}}
+  </button>
+</view>

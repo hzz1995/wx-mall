@@ -1,0 +1,38 @@
+<view wx:if="{{show}}" class="mask" catchtouchmove="noop" bindtap="close">
+  <view class="sheet" catchtap="noop">
+    <view class="head">
+      <view class="thumb">
+        <image wx:if="{{product.cover}}" class="thumb-img" src="{{product.cover}}" mode="aspectFill" />
+        <view wx:else class="thumb-fallback">{{product.initial || '店'}}</view>
+      </view>
+      <view class="info">
+        <view class="name">{{product.name}}</view>
+        <view class="price"><text class="yen">¥</text>{{product.priceText}}</view>
+      </view>
+      <view class="close" catchtap="close">×</view>
+    </view>
+
+    <view class="qty-row">
+      <text class="qty-label">购买数量</text>
+      <view class="qty-actions">
+        <view class="stepper">
+          <view class="step-btn {{quantity <= 1 ? 'disabled' : ''}}" catchtap="decrease">−</view>
+          <input
+            class="qty-input"
+            type="number"
+            value="{{quantityText}}"
+            confirm-type="done"
+            bindinput="onInput"
+            bindblur="onBlur"
+            bindconfirm="confirm"
+          />
+          <view class="step-btn {{quantity >= 99 ? 'disabled' : ''}}" catchtap="increase">+</view>
+        </view>
+        <button class="confirm-inline" bindtap="confirm">加入购物车</button>
+      </view>
+    </view>
+    <view class="tip">单次最多 99 件</view>
+
+    <view class="safe-bottom"></view>
+  </view>
+</view>

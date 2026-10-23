@@ -1,0 +1,9 @@
+{
+  "desc": "不支持被搜索",
+  "rules": [
+    {
+      "action": "disallow",
+      "page": "*"
+    }
+  ]
+}

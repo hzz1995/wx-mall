@@ -1,0 +1,48 @@
+{
+  "pages": [
+    "pages/products/index",
+    "pages/cart/index",
+    "pages/mine/index",
+    "pages/login/index",
+    "pages/product/index",
+    "pages/checkout/index",
+    "pages/orders/index",
+    "pages/order-detail/index",
+    "pages/profile/index",
+    "pages/password/index"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#F6F4EF",
+    "navigationBarTitleText": "祥哥小铺",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F6F4EF",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "custom": true,
+    "color": "#8C8B82",
+    "selectedColor": "#E2572B",
+    "backgroundColor": "#FBFAF6",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/products/index",
+        "text": "全部商品"
+      },
+      {
+        "pagePath": "pages/cart/index",
+        "text": "购物车"
+      },
+      {
+        "pagePath": "pages/mine/index",
+        "text": "我的"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents",
+  "usingComponents": {
+    "qty-dialog": "/components/qty-dialog/index"
+  }
+}

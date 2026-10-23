@@ -1,0 +1,159 @@
+<view class="page home-page">
+  <view class="hero">
+    <view class="hero-watermark">
+      <view>GOODS</view>
+      <view>LIST</view>
+    </view>
+
+    <view class="hero-top">
+      <view class="hero-brand">
+        <view class="hero-name">{{settings.shopName || '祥哥小铺'}}</view>
+        <view class="hero-sub">GOODS · ORDERS</view>
+      </view>
+      <view class="shortcuts">
+        <view class="shortcut" bindtap="contactService">
+          <view class="shortcut-bubble">
+            <image class="shortcut-icon" src="/images/icon-service-light.png" mode="aspectFit" />
+          </view>
+          <text>客服</text>
+        </view>
+        <view class="shortcut" bindtap="goCart">
+          <view class="shortcut-bubble">
+            <image class="shortcut-icon" src="/images/icon-cart-light.png" mode="aspectFit" />
+          </view>
+          <text>购物车</text>
+          <view class="shortcut-badge" wx:if="{{cartCount > 0}}">{{cartCount > 99 ? '99+' : cartCount}}</view>
+        </view>
+        <view class="shortcut" bindtap="goOrders">
+          <view class="shortcut-bubble">
+            <image class="shortcut-icon" src="/images/icon-order-light.png" mode="aspectFit" />
+          </view>
+          <text>订单</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="hero-notice" wx:if="{{settings.notice}}">
+      <text class="notice-tag">公告</text>
+      <text class="notice-text">{{settings.notice}}</text>
+    </view>
+
+    <view class="hero-tags">
+      <text>商品浏览</text>
+      <text class="tag-dot">·</text>
+      <text>在线下单</text>
+      <text class="tag-dot">·</text>
+      <text>订单记录</text>
+    </view>
+  </view>
+
+  <scroll-view class="cat-nav" scroll-x enable-flex wx:if="{{categories.length}}">
+    <view class="cat-nav-item" bindtap="goProducts">全部</view>
+    <view
+      wx:for="{{categories}}"
+      wx:key="_id"
+      class="cat-nav-item"
+      data-id="{{item._id}}"
+      bindtap="goCategory"
+    >{{item.name}}</view>
+  </scroll-view>
+
+  <block wx:if="{{loading}}">
+    <view class="section-head">
+      <view class="section-title">今日推荐</view>
+    </view>
+    <view class="grid">
+      <view class="skeleton-card" wx:for="{{skeletonItems}}" wx:key="*this">
+        <view class="skeleton-thumb shimmer"></view>
+        <view class="skeleton-line shimmer"></view>
+        <view class="skeleton-line short shimmer"></view>
+      </view>
+    </view>
+  </block>
+
+  <block wx:elif="{{error}}">
+    <view class="state">
+      {{error}}
+      <view class="state-action" bindtap="load">重新加载</view>
+    </view>
+  </block>
+
+  <block wx:elif="{{featured.length}}">
+    <view class="section-head">
+      <view>
+        <view class="section-title">今日推荐</view>
+        <view class="section-sub">近期上架</view>
+      </view>
+      <view class="section-more" bindtap="goProducts">全部商品 ›</view>
+    </view>
+
+    <view class="grid">
+      <view
+        class="product-card"
+        wx:for="{{featured}}"
+        wx:key="_id"
+        data-id="{{item._id}}"
+        bindtap="goProduct"
+      >
+        <view class="thumb">
+          <image wx:if="{{item.cover}}" class="thumb-img" src="{{item.cover}}" mode="aspectFill" lazy-load />
+          <view wx:else class="thumb-fallback">{{item.initial}}</view>
+          <view class="video-tag" wx:if="{{item.hasVideo}}">视频</view>
+        </view>
+        <view class="product-info">
+          <view class="product-name">{{item.name}}</view>
+          <view class="product-meta">
+            <view class="price"><text class="yen">¥</text>{{item.priceText}}</view>
+            <view class="sales" wx:if="{{item.sales > 0}}">已售 {{item.sales}}</view>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="zone" wx:for="{{zones}}" wx:key="key">
+      <view class="zone-banner theme-{{item.theme}}" data-id="{{item._id}}" bindtap="goCategory">
+        <view class="zone-badge">{{item.initial}}</view>
+        <view class="zone-info">
+          <view class="zone-name">{{item.name}}</view>
+          <view class="zone-sub">共 {{item.count}} 件好物</view>
+        </view>
+        <view class="zone-more">查看 ›</view>
+      </view>
+
+      <view class="grid zone-grid">
+        <view
+          class="product-card"
+          wx:for="{{item.products}}"
+          wx:for-item="product"
+          wx:key="_id"
+          data-id="{{product._id}}"
+          bindtap="goProduct"
+        >
+          <view class="thumb">
+            <image wx:if="{{product.cover}}" class="thumb-img" src="{{product.cover}}" mode="aspectFill" lazy-load />
+            <view wx:else class="thumb-fallback">{{product.initial}}</view>
+            <view class="video-tag" wx:if="{{product.hasVideo}}">视频</view>
+          </view>
+          <view class="product-info">
+            <view class="product-name">{{product.name}}</view>
+            <view class="product-meta">
+              <view class="price"><text class="yen">¥</text>{{product.priceText}}</view>
+              <view class="sales" wx:if="{{product.sales > 0}}">已售 {{product.sales}}</view>
+            </view>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="foot">
+      <view class="foot-line"></view>
+      <view class="foot-title">商品浏览 · 订单记录</view>
+    </view>
+  </block>
+
+  <view wx:else class="empty-panel">
+    <view class="empty-mark">店</view>
+    <view class="empty-title">店里还没有上架商品</view>
+    <view class="empty-sub">店主在管理后台上架后，这里会自动展示</view>
+  </view>
+</view>

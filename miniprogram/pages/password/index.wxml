@@ -1,0 +1,47 @@
+<view class="page password-page">
+  <view class="head">
+    <view class="head-title">修改密码</view>
+    <view class="head-sub">密码为 6-32 位，修改后立即生效</view>
+  </view>
+
+  <view class="card form-card">
+    <view class="field">
+      <view class="field-label required">原密码</view>
+      <input
+        class="field-input"
+        password
+        maxlength="32"
+        placeholder="请输入当前密码"
+        placeholder-class="field-placeholder"
+        value="{{oldPassword}}"
+        bindinput="onOldInput"
+      />
+    </view>
+    <view class="field">
+      <view class="field-label required">新密码</view>
+      <input
+        class="field-input"
+        password
+        maxlength="32"
+        placeholder="至少 6 位"
+        placeholder-class="field-placeholder"
+        value="{{newPassword}}"
+        bindinput="onNewInput"
+      />
+    </view>
+    <view class="field">
+      <view class="field-label required">确认密码</view>
+      <input
+        class="field-input"
+        password
+        maxlength="32"
+        placeholder="再次输入新密码"
+        placeholder-class="field-placeholder"
+        value="{{confirmPassword}}"
+        bindinput="onConfirmInput"
+      />
+    </view>
+  </view>
+
+  <button class="btn btn-primary save-btn" loading="{{saving}}" disabled="{{saving}}" bindtap="submit">确认修改</button>
+</view>

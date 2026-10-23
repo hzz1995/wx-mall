@@ -1,0 +1,135 @@
+<view class="page product-page">
+  <view wx:if="{{loading}}" class="state">正在加载…</view>
+  <view wx:elif="{{error}}" class="state">
+    {{error}}
+    <view class="state-action" bindtap="goHome">返回全部商品</view>
+  </view>
+
+  <block wx:elif="{{product}}">
+    <view class="videos" wx:if="{{product.videoUrls.length}}">
+      <video
+        wx:for="{{product.videoUrls}}"
+        wx:key="*this"
+        class="product-video"
+        src="{{item}}"
+        poster="{{product.images[0]}}"
+        controls
+        object-fit="contain"
+        show-center-play-btn
+        enable-play-gesture
+      />
+    </view>
+
+    <view class="gallery" wx:if="{{product.images.length}}">
+      <swiper
+        wx:if="{{product.images.length > 1}}"
+        class="gallery-swiper"
+        circular
+        bindchange="onSwiperChange"
+      >
+        <swiper-item wx:for="{{product.images}}" wx:key="*this">
+          <image
+            class="gallery-img"
+            src="{{item}}"
+            mode="aspectFill"
+            data-index="{{index}}"
+            bindtap="previewImage"
+          />
+        </swiper-item>
+      </swiper>
+      <image
+        wx:else
+        class="gallery-img"
+        src="{{product.images[0]}}"
+        mode="aspectFill"
+        data-index="0"
+        bindtap="previewImage"
+      />
+      <view class="gallery-count" wx:if="{{product.images.length > 1}}">{{current + 1}} / {{product.images.length}}</view>
+      <view class="gallery-dots" wx:if="{{product.images.length > 1}}">
+        <view
+          wx:for="{{product.images}}"
+          wx:key="*this"
+          class="gallery-dot {{current === index ? 'active' : ''}}"
+        />
+      </view>
+    </view>
+    <view class="gallery gallery-empty" wx:else>{{product.initial}}</view>
+
+    <view class="sheet">
+      <view class="head">
+        <view class="price-row">
+          <view class="price"><text class="yen">¥</text>{{product.priceText}}</view>
+          <view class="origin" wx:if="{{product.originalPrice > product.price}}">¥{{product.originalPriceText}}</view>
+          <view class="off-tag" wx:if="{{!product.onSale}}">已下架</view>
+          <view class="price-side">
+            <text wx:if="{{product.sales > 0}}">已售 {{product.sales}}</text>
+            <text wx:else>在售</text>
+          </view>
+        </view>
+        <view class="name">{{product.name}}</view>
+        <view class="meta">
+          <text wx:if="{{product.spec}}">规格 {{product.spec}}</text>
+          <text wx:if="{{product.spec && product.origin}}" class="dot">·</text>
+          <text wx:if="{{product.origin}}">产地 {{product.origin}}</text>
+          <text wx:if="{{!product.spec && !product.origin}}">商品价格</text>
+        </view>
+      </view>
+
+      <view class="divider"></view>
+
+      <view class="attrs" wx:if="{{product.spec || product.productionDate || product.origin}}">
+        <view class="attrs-title">商品参数</view>
+        <view class="attr-row" wx:if="{{product.spec}}">
+          <text class="attr-label">规格型号</text>
+          <text class="attr-value">{{product.spec}}</text>
+        </view>
+        <view class="attr-row" wx:if="{{product.productionDate}}">
+          <text class="attr-label">生产日期</text>
+          <text class="attr-value">{{product.productionDate}}</text>
+        </view>
+        <view class="attr-row" wx:if="{{product.origin}}">
+          <text class="attr-label">产地</text>
+          <text class="attr-value">{{product.origin}}</text>
+        </view>
+      </view>
+
+      <view class="desc-title">商品详情</view>
+      <view class="desc" wx:if="{{product.description}}">
+        <text>{{product.description}}</text>
+      </view>
+      <view class="desc desc-empty" wx:else>店主还没有填写商品详情</view>
+    </view>
+
+    <view class="dock safe-bottom product-dock" wx:if="{{canShop}}">
+      <view class="dock-cart-entry" bindtap="goCart">
+        <view class="dock-cart-icon-wrap">
+          <image class="dock-cart-icon" src="/images/icon-cart-brand.png" mode="aspectFit" />
+          <view class="dock-cart-badge" wx:if="{{cartCount > 0}}">{{cartCount > 99 ? '99+' : cartCount}}</view>
+        </view>
+        <text class="dock-cart-label">购物车</text>
+      </view>
+      <button
+        class="product-dock-cart"
+        disabled="{{!product.onSale || adding}}"
+        bindtap="openQtyDialog"
+      >{{adding ? '加入中…' : '加入购物车'}}</button>
+      <button
+        class="product-dock-buy"
+        disabled="{{!product.onSale}}"
+        bindtap="buyNow"
+      >{{product.onSale ? '立即购买' : '已下架'}}</button>
+    </view>
+    <view class="dock safe-bottom" wx:else>
+      <button class="product-dock-disabled" disabled>当前账号仅可浏览商品</button>
+    </view>
+
+    <qty-dialog
+      show="{{qtyVisible}}"
+      product="{{qtyProduct}}"
+      initial-qty="{{qtyValue}}"
+      bind:close="closeQtyDialog"
+      bind:confirm="confirmAddToCart"
+    />
+  </block>
+</view>

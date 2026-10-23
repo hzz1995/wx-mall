@@ -1,0 +1,163 @@
+<view class="page products-page">
+  <view class="header">
+    <view class="header-watermark">SELECT</view>
+    <view class="header-top">
+      <view class="header-title-wrap">
+        <view class="header-eyebrow">{{settings.shopName || 'GOODS'}}</view>
+        <view class="header-title">全部商品</view>
+      </view>
+      <view class="shortcuts">
+        <view class="shortcut" bindtap="contactService">
+          <view class="shortcut-bubble">
+            <image class="shortcut-icon" src="/images/icon-service-light.png" mode="aspectFit" />
+          </view>
+          <text>客服</text>
+        </view>
+        <view class="shortcut" bindtap="goCart">
+          <view class="shortcut-bubble">
+            <image class="shortcut-icon" src="/images/icon-cart-light.png" mode="aspectFit" />
+          </view>
+          <text>购物车</text>
+          <view class="shortcut-badge" wx:if="{{cartCount > 0}}">{{cartCount > 99 ? '99+' : cartCount}}</view>
+        </view>
+        <view class="shortcut" bindtap="goOrders">
+          <view class="shortcut-bubble">
+            <image class="shortcut-icon" src="/images/icon-order-light.png" mode="aspectFit" />
+          </view>
+          <text>订单</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="search-bar">
+      <image class="search-icon" src="/images/icon-search.png" mode="aspectFit" />
+      <input
+        class="search-input"
+        placeholder="搜索店内商品"
+        placeholder-class="search-placeholder"
+        value="{{keyword}}"
+        confirm-type="search"
+        bindinput="onSearchInput"
+      />
+      <view class="search-clear" wx:if="{{keyword}}" bindtap="clearSearch">×</view>
+    </view>
+    <view class="shop-notice" wx:if="{{settings.notice}}">{{settings.notice}}</view>
+  </view>
+
+  <view class="filter-row">
+    <view class="filter-pill {{sort === 'default' ? 'active' : ''}}" data-sort="default" bindtap="changeSort">综合</view>
+    <view class="filter-pill {{sort === 'sales' ? 'active' : ''}}" data-sort="sales" bindtap="changeSort">销量</view>
+    <view class="filter-pill {{sort === 'new' ? 'active' : ''}}" data-sort="new" bindtap="changeSort">最新</view>
+    <view class="result-count">已加载 {{products.length}} 件</view>
+  </view>
+
+  <view wx:if="{{loading && !loaded}}" class="loading-wrap">
+    <view class="skeleton-row" wx:for="{{skeletonItems}}" wx:key="*this">
+      <view class="skeleton-thumb shimmer"></view>
+      <view class="skeleton-info">
+        <view class="skeleton-line shimmer"></view>
+        <view class="skeleton-line short shimmer"></view>
+        <view class="skeleton-line tiny shimmer"></view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:elif="{{error && !loaded}}" class="state">
+    {{error}}
+    <view class="state-action" bindtap="load">重新加载</view>
+  </view>
+
+  <view wx:elif="{{loaded && !products.length && !keyword && activeCategory === 'all' && sort === 'default'}}" class="empty-panel">
+    <view class="empty-mark">店</view>
+    <view class="empty-title">店里还没有上架商品</view>
+    <view class="empty-sub">店主在管理后台上架后，这里会自动展示</view>
+  </view>
+
+  <view wx:else class="content">
+    <view class="rail">
+      <view
+        class="rail-item {{activeCategory === 'all' ? 'active' : ''}}"
+        data-id="all"
+        bindtap="selectCategory"
+      >
+        <view class="rail-text">全部</view>
+      </view>
+      <view
+        wx:for="{{categories}}"
+        wx:key="_id"
+        class="rail-item {{activeCategory === item._id ? 'active' : ''}}"
+        data-id="{{item._id}}"
+        bindtap="selectCategory"
+      >
+        <view class="rail-text">{{item.name}}</view>
+      </view>
+    </view>
+
+    <view class="list">
+      <block wx:if="{{products.length}}">
+        <view
+          class="list-item"
+          wx:for="{{products}}"
+          wx:key="_id"
+          data-id="{{item._id}}"
+          bindtap="goProduct"
+        >
+          <view class="list-thumb">
+            <image wx:if="{{item.cover}}" class="list-thumb-img" src="{{item.cover}}" mode="aspectFill" lazy-load />
+            <view wx:else class="list-thumb-fallback">{{item.initial}}</view>
+            <view class="video-mark" wx:if="{{item.hasVideo}}">视频</view>
+          </view>
+
+          <view class="list-info">
+            <view class="list-name">{{item.name}}</view>
+            <view class="list-meta">已售 {{item.sales || 0}} 件</view>
+            <view class="list-extra" wx:if="{{item.spec || item.origin}}">
+              <text wx:if="{{item.spec}}">{{item.spec}}</text>
+              <text wx:if="{{item.spec && item.origin}}"> · </text>
+              <text wx:if="{{item.origin}}">{{item.origin}}</text>
+            </view>
+            <view class="list-tags">
+              <text class="tag-soft">在售</text>
+              <text class="tag-soft" wx:if="{{item.originalPrice > item.price}}">有优惠</text>
+              <text class="tag-soft" wx:if="{{item.hasVideo}}">含视频</text>
+            </view>
+            <view class="list-bottom">
+              <view class="price-wrap">
+                <view class="price"><text class="yen">¥</text>{{item.priceText}}</view>
+                <view class="original" wx:if="{{item.originalPrice > item.price}}">¥{{item.originalPriceText}}</view>
+              </view>
+              <view
+                wx:if="{{canShop}}"
+                class="add-btn"
+                hover-class="add-btn-hover"
+                data-id="{{item._id}}"
+                catchtap="openQtyDialog"
+              >{{addingId === item._id ? '…' : '加购'}}</view>
+              <view wx:else class="browse-only">仅浏览</view>
+            </view>
+          </view>
+        </view>
+
+        <view class="load-more" wx:if="{{loadingMore}}">正在加载…</view>
+        <view class="load-more" wx:elif="{{!hasMore}}">没有更多商品了</view>
+      </block>
+
+      <view wx:else class="empty-panel small">
+        <view class="empty-title">没有符合条件的商品</view>
+        <view class="empty-sub" wx:if="{{keyword}}">换个关键词试试</view>
+        <view class="empty-sub" wx:else>换个分类或排序试试</view>
+        <view class="empty-action" wx:if="{{keyword}}" bindtap="clearSearch">清空搜索</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="to-top" wx:if="{{showTop}}" bindtap="scrollToTop">↑</view>
+
+  <qty-dialog
+    show="{{qtyVisible}}"
+    product="{{qtyProduct}}"
+    initial-qty="{{qtyValue}}"
+    bind:close="closeQtyDialog"
+    bind:confirm="confirmAddToCart"
+  />
+</view>

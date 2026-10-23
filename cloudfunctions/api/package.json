@@ -1,0 +1,9 @@
+{
+  "name": "mall-api",
+  "version": "1.0.0",
+  "description": "商城统一云函数（小程序 + Web 管理端）",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

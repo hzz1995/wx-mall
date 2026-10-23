@@ -1,0 +1,39 @@
+.profile-page {
+  padding: 36rpx 32rpx 80rpx;
+}
+
+.head {
+  padding: 8rpx 4rpx 30rpx;
+}
+
+.head-title {
+  font-size: 42rpx;
+  font-weight: 600;
+  letter-spacing: 2rpx;
+}
+
+.head-sub {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: var(--muted);
+}
+
+.form-card {
+  padding: 4rpx 30rpx;
+}
+
+.readonly {
+  flex: 1;
+  font-size: 28rpx;
+  color: var(--muted);
+  padding-top: 4rpx;
+}
+
+.address {
+  min-height: 100rpx;
+  line-height: 1.6;
+}
+
+.save-btn {
+  margin-top: 44rpx;
+}

@@ -1,0 +1,55 @@
+<view class="page orders">
+  <view class="head">
+    <view class="head-title">我的订单</view>
+  </view>
+
+  <view class="list" wx:if="{{list.length}}">
+    <view
+      class="order-card"
+      wx:for="{{list}}"
+      wx:key="_id"
+      data-id="{{item._id}}"
+      bindtap="goDetail"
+    >
+      <view class="order-top">
+        <view class="order-no">{{item.orderNo}}</view>
+        <view class="tag {{item.statusClass}}">{{item.statusText}}</view>
+      </view>
+      <view class="order-body">
+        <view class="thumb">
+          <image wx:if="{{item.itemImage}}" class="thumb-img" src="{{item.itemImage}}" mode="aspectFill" />
+          <view wx:else class="thumb-fallback">{{item.itemInitial}}</view>
+        </view>
+        <view class="order-main">
+          <view class="order-name">{{item.itemName}}{{item.extraCount > 0 ? ' 等 ' + (item.extraCount + 1) + ' 种商品' : ''}}</view>
+          <view class="order-qty">× {{item.itemQuantity}}</view>
+        </view>
+        <view class="order-amount price"><text class="yen">¥</text>{{item.totalText}}</view>
+      </view>
+      <view class="order-remark" wx:if="{{item.remark}}">备注：{{item.remark}}</view>
+      <view class="order-bottom">
+        <view class="order-time">{{item.createdAtText}}</view>
+        <view class="order-actions">
+          <view class="reorder-btn" data-index="{{index}}" catchtap="reorder">再来一单</view>
+          <view class="order-more">详情 ›</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="load-more" wx:if="{{loadingMore}}">正在加载…</view>
+    <view class="load-more" wx:elif="{{!hasMore}}">没有更多订单了</view>
+  </view>
+
+  <view wx:elif="{{loading}}" class="state">正在加载…</view>
+  <view wx:elif="{{error}}" class="state">
+    {{error}}
+    <view class="state-action" bindtap="load">重新加载</view>
+  </view>
+  <view wx:else class="state">
+    还没有订单
+    <view class="state-hint">去挑几件喜欢的商品吧</view>
+    <view class="state-btn">
+      <button class="btn btn-primary" bindtap="goShopping">去逛逛</button>
+    </view>
+  </view>
+</view>

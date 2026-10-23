@@ -1,0 +1,99 @@
+<view class="page cart-page">
+  <view class="head">
+    <view class="head-title">购物车</view>
+    <view class="head-sub" wx:if="{{loggedIn && count > 0}}">共 {{count}} 件</view>
+  </view>
+
+  <block wx:if="{{!loggedIn}}">
+    <view class="state">
+      登录后查看购物车
+      <view class="state-hint">账号由店主开通，请联系店主获取</view>
+      <view class="state-btn">
+        <button class="btn btn-primary" bindtap="goLogin">去登录</button>
+      </view>
+    </view>
+  </block>
+
+  <block wx:elif="{{!isCustomer}}">
+    <view class="role-state">
+      <view class="role-mark">店</view>
+      <view class="role-title">当前账号不支持购物车</view>
+      <view class="role-sub">销售或管理员账号仅可浏览商品，请使用客户账号登录后下单</view>
+    </view>
+  </block>
+
+  <block wx:elif="{{items.length}}">
+    <view class="list">
+      <view class="cart-item" wx:for="{{items}}" wx:key="productId">
+        <view
+          class="check {{item.checked ? 'checked' : ''}} {{!item.onSale ? 'disabled' : ''}}"
+          data-id="{{item.productId}}"
+          data-checked="{{item.checked}}"
+          data-onsale="{{item.onSale}}"
+          bindtap="toggleItem"
+        >
+          <view wx:if="{{item.checked}}" class="check-mark">✓</view>
+        </view>
+
+        <view class="thumb">
+          <image wx:if="{{item.cover}}" class="thumb-img" src="{{item.cover}}" mode="aspectFill" />
+          <view wx:else class="thumb-fallback">{{item.initial}}</view>
+        </view>
+
+        <view class="item-main">
+          <view class="item-top">
+            <view class="item-name">{{item.name}}</view>
+            <view class="item-remove" data-id="{{item.productId}}" data-name="{{item.name}}" bindtap="removeItem">移除</view>
+          </view>
+          <view class="off-sale" wx:if="{{!item.onSale}}">已下架</view>
+          <view class="item-bottom">
+            <view class="price item-price"><text class="yen">¥</text>{{item.priceText}}</view>
+            <view class="stepper">
+              <view
+                class="stepper-btn {{item.quantity <= 1 ? 'disabled' : ''}}"
+                data-id="{{item.productId}}"
+                data-quantity="{{item.quantity}}"
+                data-delta="-1"
+                bindtap="changeQuantity"
+              >−</view>
+              <view class="stepper-value">{{item.quantity}}</view>
+              <view
+                class="stepper-btn"
+                data-id="{{item.productId}}"
+                data-quantity="{{item.quantity}}"
+                data-delta="1"
+                bindtap="changeQuantity"
+              >+</view>
+            </view>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="dock safe-bottom">
+      <view class="select-all" bindtap="toggleAll">
+        <view class="check {{allChecked ? 'checked' : ''}}">
+          <view wx:if="{{allChecked}}" class="check-mark">✓</view>
+        </view>
+        <text>全选</text>
+      </view>
+      <view class="dock-main">
+        <view class="dock-label">合计（{{selectedCount}} 件）</view>
+        <view class="dock-total price"><text class="yen">¥</text>{{totalText}}</view>
+      </view>
+      <button class="btn btn-primary dock-btn" bindtap="checkout">去结算</button>
+    </view>
+  </block>
+
+  <view wx:elif="{{loading}}" class="state">正在加载…</view>
+  <view wx:elif="{{error}}" class="state">
+    {{error}}
+    <view class="state-action" bindtap="load">重新加载</view>
+  </view>
+  <view wx:else class="empty-cart">
+    <view class="empty-cart-mark">车</view>
+    <view class="empty-cart-title">购物车还是空的</view>
+    <view class="empty-cart-sub">去挑几件喜欢的商品吧</view>
+    <button class="empty-cart-btn" bindtap="goProducts">去逛逛</button>
+  </view>
+</view>

@@ -1,0 +1,97 @@
+<view class="page checkout">
+  <view wx:if="{{needLogin}}" class="state">
+    请先登录后再结算
+    <view class="state-action" bindtap="goLogin">去登录</view>
+  </view>
+  <view wx:elif="{{loading}}" class="state">正在加载…</view>
+  <view wx:elif="{{error}}" class="state">
+    {{error}}
+    <view class="state-action" bindtap="goCart">返回购物车</view>
+  </view>
+
+  <block wx:else>
+    <view class="section-title">商品清单</view>
+    <view class="edit-hint" wx:if="{{editable}}">可修改数量，提交后生成新订单</view>
+    <view class="card item-card">
+      <view class="item" wx:for="{{items}}" wx:key="productId">
+        <view class="item-thumb">
+          <image wx:if="{{item.image}}" class="item-thumb-img" src="{{item.image}}" mode="aspectFill" />
+          <view wx:else class="item-thumb-fallback">{{item.initial}}</view>
+        </view>
+        <view class="item-main">
+          <view class="item-name">{{item.name}}</view>
+          <view class="item-spec">¥{{item.priceText}} × {{item.quantity}}</view>
+          <view class="qty-stepper" wx:if="{{editable}}">
+            <view
+              class="qty-btn {{item.quantity <= 1 ? 'disabled' : ''}}"
+              data-product-id="{{item.productId}}"
+              data-delta="-1"
+              catchtap="changeQuantity"
+              hover-class="qty-btn-active"
+            >−</view>
+            <view class="qty-value">{{item.quantity}}</view>
+            <view
+              class="qty-btn {{item.quantity >= 99 ? 'disabled' : ''}}"
+              data-product-id="{{item.productId}}"
+              data-delta="1"
+              catchtap="changeQuantity"
+              hover-class="qty-btn-active"
+            >+</view>
+          </view>
+        </view>
+        <view class="item-total price"><text class="yen">¥</text>{{item.lineTotalText}}</view>
+      </view>
+      <view class="total-row">
+        <view class="total-label">合计</view>
+        <view class="total-value price"><text class="yen">¥</text>{{totalText}}</view>
+      </view>
+    </view>
+
+    <view class="section-title">收货信息</view>
+    <view class="card form-card">
+      <view class="field">
+        <view class="field-label">姓名</view>
+        <view class="readonly">{{user.name}}</view>
+      </view>
+      <view class="field">
+        <view class="field-label">手机号</view>
+        <view class="readonly">{{user.phone}}</view>
+      </view>
+      <view class="field">
+        <view class="field-label required">收货地址</view>
+        <textarea
+          class="field-input address"
+          maxlength="200"
+          auto-height
+          placeholder="请填写详细收货地址"
+          placeholder-class="field-placeholder"
+          value="{{address}}"
+          bindinput="onAddressInput"
+        />
+      </view>
+      <view class="field">
+        <view class="field-label">备注</view>
+        <textarea
+          class="field-input remark"
+          maxlength="200"
+          auto-height
+          placeholder="选填，例如发货时间或其他要求"
+          placeholder-class="field-placeholder"
+          value="{{remark}}"
+          bindinput="onRemarkInput"
+        />
+      </view>
+      <view class="counter">{{remark.length}}/200</view>
+    </view>
+
+    <view class="dock safe-bottom">
+      <view class="dock-main">
+        <view class="dock-label">合计</view>
+        <view class="dock-total price"><text class="yen">¥</text>{{totalText}}</view>
+      </view>
+      <button class="btn btn-primary" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submit">
+        {{submitting ? '提交中…' : '提交订单'}}
+      </button>
+    </view>
+  </block>
+</view>

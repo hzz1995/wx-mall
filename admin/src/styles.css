@@ -1,0 +1,135 @@
+:root {
+  --el-color-primary: #1f4d3b;
+  --el-color-primary-light-3: #4a7464;
+  --el-color-primary-light-5: #7a9a8d;
+  --el-color-primary-light-7: #acc0b7;
+  --el-color-primary-light-8: #c5d3cd;
+  --el-color-primary-light-9: #e9f0eb;
+  --el-color-primary-dark-2: #173b2d;
+  --brand: #1f4d3b;
+  --ink: #23241f;
+  --muted: #8c8b82;
+  --line: #e9e4d9;
+  --canvas: #f4f2ec;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+  color: var(--ink);
+  background: var(--canvas);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  padding: 28px 32px 48px;
+}
+
+@media (max-width: 900px) {
+  .page {
+    padding: 20px;
+  }
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.page-head h2 {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: 1px;
+}
+
+.page-head .sub {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.toolbar .total {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.amount {
+  color: #c0502d;
+  font-weight: 600;
+  font-family: 'DIN Alternate', 'Helvetica Neue', sans-serif;
+}
+
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.form-hint {
+  width: 100%;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.thumb-empty {
+  width: 56px;
+  height: 56px;
+  border-radius: 6px;
+  background: #efede6;
+  color: #b7b3a7;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.el-table {
+  --el-table-header-bg-color: #fbfaf6;
+  --el-table-border-color: var(--line);
+}
+
+.el-dialog {
+  max-width: 94vw;
+}
+
+.el-drawer {
+  max-width: 94vw;
+}
+
+.el-message-box {
+  max-width: 90vw;
+}
+
+.el-card {
+  border-color: var(--line);
+}

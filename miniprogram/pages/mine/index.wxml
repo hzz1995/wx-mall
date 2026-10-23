@@ -1,0 +1,66 @@
+<view class="page mine-page">
+  <view class="head">
+    <view class="head-title">我的</view>
+  </view>
+
+  <block wx:if="{{loggedIn && user}}">
+    <view class="profile-card">
+      <view class="avatar">{{initial}}</view>
+      <view class="profile-main">
+        <view class="profile-name">
+          {{user.name}}
+          <view class="type-tag">{{typeText}}</view>
+        </view>
+        <view class="profile-phone">{{user.phone}}</view>
+      </view>
+    </view>
+
+    <view class="info-card" wx:if="{{user.shopName || user.address || salesName}}">
+      <view class="info-row" wx:if="{{user.shopName}}">
+        <view class="info-label">店铺名称</view>
+        <view class="info-value">{{user.shopName}}</view>
+      </view>
+      <view class="info-row" wx:if="{{user.address}}">
+        <view class="info-label">收货地址</view>
+        <view class="info-value">{{user.address}}</view>
+      </view>
+      <view class="info-row" wx:if="{{salesName}}">
+        <view class="info-label">负责销售</view>
+        <view class="info-value">{{salesName}}</view>
+      </view>
+    </view>
+
+    <view class="menu">
+      <view class="menu-item" wx:if="{{user.type === 'KH'}}" bindtap="goOrders">
+        <view class="menu-text">我的订单</view>
+        <view class="menu-arrow">›</view>
+      </view>
+      <view class="menu-item" bindtap="goProfile">
+        <view class="menu-text">个人资料</view>
+        <view class="menu-arrow">›</view>
+      </view>
+      <view class="menu-item" bindtap="goPassword">
+        <view class="menu-text">修改密码</view>
+        <view class="menu-arrow">›</view>
+      </view>
+      <view class="menu-item" wx:if="{{serviceWechat}}" bindtap="copyWechat">
+        <view class="menu-text">联系店主</view>
+        <view class="menu-extra">{{serviceWechat}}</view>
+        <view class="menu-arrow">›</view>
+      </view>
+    </view>
+
+    <button class="btn logout" bindtap="logout">退出登录</button>
+  </block>
+
+  <block wx:else>
+    <view class="guest-card">
+      <view class="avatar guest">店</view>
+      <view class="guest-title">还未登录</view>
+      <view class="guest-sub">登录后查看订单、购物车和个人资料</view>
+      <button class="btn btn-primary guest-btn" bindtap="goLogin">登录</button>
+    </view>
+  </block>
+
+  <view class="foot">商品浏览与订单记录</view>
+</view>
