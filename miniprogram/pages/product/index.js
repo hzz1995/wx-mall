@@ -1,7 +1,6 @@
 const api = require('../../utils/api')
 const { formatPrice } = require('../../utils/format')
 const {
-  ensureLogin,
   getToken,
   getUser,
   requireLogin
@@ -65,8 +64,12 @@ Page({
     try {
       const data = await api.call('getProduct', query)
       const product = data.product
-      product.priceText = formatPrice(product.price)
-      product.originalPriceText = formatPrice(product.originalPrice)
+      const price = Number(product.price) || 0
+      const originalPrice = Number(product.originalPrice) || 0
+      product.hasDiscount = originalPrice > price
+      product.discountText = formatPrice(product.hasDiscount ? originalPrice - price : 0)
+      product.priceText = formatPrice(price)
+      product.originalPriceText = formatPrice(originalPrice)
       product.onSale = product.status === 'ON'
       product.initial = (product.name || '·').slice(0, 1)
       this.setData({ product, loading: false, current: 0 })
@@ -152,21 +155,6 @@ Page({
 
   goCart() {
     wx.switchTab({ url: '/pages/cart/index' })
-  },
-
-  buyNow() {
-    const { product } = this.data
-    if (!product || !product.onSale) return
-    if (!this.data.canShop) {
-      wx.showToast({ title: '只有客户账号可以下单', icon: 'none' })
-      return
-    }
-    if (!ensureLogin()) return
-    wx.setStorageSync('mall_checkout', {
-      source: 'direct',
-      items: [{ productId: product._id, quantity: 1 }]
-    })
-    wx.navigateTo({ url: '/pages/checkout/index' })
   },
 
   goHome() {

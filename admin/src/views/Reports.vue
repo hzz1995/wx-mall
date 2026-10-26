@@ -9,7 +9,7 @@
     </div>
 
     <div class="toolbar report-toolbar">
-      <el-select v-model="rangeType" style="width: 160px" @change="onRangeChange">
+      <el-select v-model="rangeType" style="width: 150px" @change="onRangeChange">
         <el-option v-for="item in rangeOptions" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
       <el-date-picker
@@ -23,7 +23,28 @@
         style="width: 300px"
         @change="onCustomRangeChange"
       />
-      <span class="range-text">{{ rangeText }}，最多跨度一年</span>
+      <el-date-picker
+        v-else-if="rangeType === 'monthPicker'"
+        v-model="monthValue"
+        type="month"
+        value-format="YYYY-MM"
+        :clearable="false"
+        style="width: 170px"
+        @change="load"
+      />
+      <el-select v-model="salesId" placeholder="全部销售" clearable style="width: 150px" @change="load">
+        <el-option v-for="item in salesList" :key="item._id" :label="item.name" :value="item._id" />
+      </el-select>
+      <el-input
+        v-model="shopName"
+        placeholder="店铺名称"
+        clearable
+        style="width: 170px"
+        @keyup.enter="load"
+        @clear="load"
+      />
+      <el-button :loading="loading" @click="load">查询</el-button>
+      <span class="range-text">{{ rangeText }}{{ rangeHint }}</span>
     </div>
 
     <el-alert
@@ -175,10 +196,15 @@ const rangeOptions = [
   { label: '最近三个月', value: '3month' },
   { label: '最近半年', value: '6month' },
   { label: '最近一年', value: 'year' },
+  { label: '按月份', value: 'monthPicker' },
   { label: '自定义', value: 'custom' }
 ]
 const rangeType = ref('today')
 const customRange = ref([])
+const monthValue = ref(dayjs().format('YYYY-MM'))
+const salesId = ref('')
+const shopName = ref('')
+const salesList = ref([])
 
 const rangeText = computed(() => {
   if (rangeType.value === 'custom') {
@@ -186,9 +212,14 @@ const rangeText = computed(() => {
       ? `${customRange.value[0]} 至 ${customRange.value[1]}`
       : '请选择日期范围'
   }
+  if (rangeType.value === 'monthPicker') {
+    return monthValue.value ? dayjs(`${monthValue.value}-01`).format('YYYY年MM月') : '请选择月份'
+  }
   const option = rangeOptions.find(item => item.value === rangeType.value)
   return option ? option.label : '今天'
 })
+
+const rangeHint = computed(() => rangeType.value === 'custom' ? '，最多跨度一年' : '')
 
 const stats = computed(() => [
   { label: '总订单', value: summary.value.orderCount || 0, sub: '已完成订单' },
@@ -209,6 +240,12 @@ function salesPercent(amount) {
 
 function getRangeParams() {
   const now = dayjs()
+  if (rangeType.value === 'monthPicker') {
+    if (!monthValue.value) return null
+    const month = dayjs(`${monthValue.value}-01`)
+    if (!month.isValid()) return null
+    return { start: month.startOf('month').valueOf(), end: month.endOf('month').valueOf() }
+  }
   if (rangeType.value === 'custom') {
     if (!customRange.value || customRange.value.length !== 2) return null
     const start = dayjs(customRange.value[0]).startOf('day')
@@ -255,7 +292,11 @@ async function load() {
 
   loading.value = true
   try {
-    const data = await api.reports(params)
+    const data = await api.reports({
+      ...params,
+      salesId: salesId.value,
+      shopName: shopName.value.trim()
+    })
     summary.value = data.summary || {}
     topProducts.value = data.topProducts || []
     bottomProducts.value = data.bottomProducts || []
@@ -270,7 +311,19 @@ async function load() {
   }
 }
 
-onMounted(load)
+async function loadSales() {
+  try {
+    const data = await api.sales()
+    salesList.value = data.list || []
+  } catch (err) {
+    ElMessage.error(err.message)
+  }
+}
+
+onMounted(() => {
+  load()
+  loadSales()
+})
 </script>
 
 <style scoped>

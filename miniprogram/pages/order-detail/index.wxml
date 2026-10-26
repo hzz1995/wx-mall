@@ -9,12 +9,12 @@
     <view class="success" wx:if="{{created}}">
       <view class="success-mark">✓</view>
       <view class="success-title">下单成功</view>
-      <view class="success-sub">订单已记录，我们会尽快与您联系</view>
+      <view class="success-sub"></view>
     </view>
 
     <view class="status-card">
       <view class="status-title">{{order.statusText}}</view>
-      <view class="status-sub" wx:if="{{order.status === 'DONE'}}">无需在线支付，店主会按您留下的联系方式沟通</view>
+      <view class="status-sub" wx:if="{{order.status === 'DONE'}}">{{isCustomer ? '' : '订单已完成'}}</view>
       <view class="status-sub" wx:else>该订单已被店主取消</view>
     </view>
 
@@ -64,6 +64,17 @@
         <view class="info-label">收货地址</view>
         <view class="info-value">{{order.address}}</view>
       </view>
+      <view class="info-row" wx:if="{{isStaff}}">
+        <view class="info-label">所属销售</view>
+        <view class="info-value">{{order.salesName || '—'}}</view>
+      </view>
+      <view class="info-row">
+        <view class="info-label">订单来源</view>
+        <view class="info-value">
+          {{order.orderSource === 'ASSIST' ? '销售帮下单' : '客户自建'}}
+          <text wx:if="{{order.orderSource === 'ASSIST' && order.assistedByName}}">（{{order.assistedByName}}）</text>
+        </view>
+      </view>
       <view class="info-row">
         <view class="info-label">备注</view>
         <view class="info-value">{{order.remark || '—'}}</view>
@@ -72,7 +83,7 @@
 
     <view class="actions">
       <button class="btn btn-ghost" bindtap="goHome">继续逛逛</button>
-      <button class="btn btn-primary" bindtap="goOrders">查看全部订单</button>
+      <button class="btn btn-primary" bindtap="goOrders">{{isCustomer ? '查看全部订单' : '返回订单列表'}}</button>
     </view>
   </block>
 </view>

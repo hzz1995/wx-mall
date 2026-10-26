@@ -7,6 +7,28 @@ const {
 } = require('../../utils/session')
 
 const PAGE_SIZE = 10
+const DAY_MS = 24 * 60 * 60 * 1000
+const RANGE_OPTIONS = [
+  { value: 'today', label: '今天' },
+  { value: 'yesterday', label: '昨天' },
+  { value: 'week', label: '最近一周' }
+]
+const NOW = new Date()
+const CURRENT_MONTH = `${NOW.getFullYear()}-${String(NOW.getMonth() + 1).padStart(2, '0')}`
+const EARLIEST_MONTH_DATE = new Date(NOW.getFullYear(), NOW.getMonth() - 11, 1)
+const EARLIEST_MONTH = `${EARLIEST_MONTH_DATE.getFullYear()}-${String(EARLIEST_MONTH_DATE.getMonth() + 1).padStart(2, '0')}`
+
+function startOfDay(date) {
+  const value = new Date(date)
+  value.setHours(0, 0, 0, 0)
+  return value
+}
+
+function endOfDay(date) {
+  const value = new Date(date)
+  value.setHours(23, 59, 59, 999)
+  return value
+}
 
 function decorate(order) {
   const items = order.items || []
@@ -28,21 +50,56 @@ function decorate(order) {
 
 Page({
   data: {
+    isCustomer: false,
+    isStaff: false,
+    isAdmin: false,
     list: [],
     loading: true,
     loadingMore: false,
     hasMore: true,
     page: 1,
-    error: ''
+    error: '',
+    exporting: false,
+    selectedIds: [],
+    selectedCount: 0,
+    rangeOptions: RANGE_OPTIONS,
+    rangeType: 'month',
+    monthValue: CURRENT_MONTH,
+    monthStart: EARLIEST_MONTH,
+    monthEnd: CURRENT_MONTH,
+    customerOptions: [{ _id: '', name: '全部客户' }],
+    customerNames: ['全部客户'],
+    customerIndex: 0,
+    customerId: '',
+    salesOptions: [{ _id: '', name: '全部销售' }],
+    salesNames: ['全部销售'],
+    salesIndex: 0,
+    salesId: ''
   },
 
   onShow() {
     if (!requireLogin('/pages/orders/index')) return
     const user = getUser()
-    if (!user || user.type !== 'KH') {
-      wx.showToast({ title: '仅客户账号可查看订单', icon: 'none' })
+    const type = user && user.type
+    const isCustomer = type === 'KH'
+    const isStaff = type === 'XS' || type === 'GLY'
+    if (!isCustomer && !isStaff) {
+      wx.showToast({ title: '仅客户、销售和管理员可查看订单', icon: 'none' })
       setTimeout(() => wx.switchTab({ url: '/pages/mine/index' }), 700)
       return
+    }
+
+    this.setData({
+      isCustomer,
+      isStaff,
+      isAdmin: type === 'GLY'
+    })
+    wx.setNavigationBarTitle({ title: isCustomer ? '我的订单' : '客户订单' })
+    if (isStaff && !this.customersLoaded) {
+      this.loadCustomerOptions()
+    }
+    if (this.data.isAdmin && !this.salesLoaded) {
+      this.loadSalesOptions()
     }
     this.load(true)
   },
@@ -61,19 +118,101 @@ Page({
     }
   },
 
-  async load(reset, fromPullDown) {
-    if (reset) {
-      this.setData({ page: 1, hasMore: true, error: '', loading: true, loadingMore: false })
+  getRangeParams() {
+    const type = this.data.rangeType
+    const now = new Date()
+    let start = null
+    let end = null
+
+    if (type === 'today') {
+      start = startOfDay(now)
+      end = now
+    } else if (type === 'yesterday') {
+      const yesterday = new Date(now.getTime() - DAY_MS)
+      start = startOfDay(yesterday)
+      end = endOfDay(yesterday)
+    } else if (type === 'week') {
+      start = startOfDay(new Date(now.getTime() - 6 * DAY_MS))
+      end = now
+    } else if (type === 'month') {
+      const matched = /^(\d{4})-(\d{2})$/.exec(String(this.data.monthValue || ''))
+      if (!matched) {
+        wx.showToast({ title: '请选择正确的月份', icon: 'none' })
+        return null
+      }
+      const year = Number(matched[1])
+      const month = Number(matched[2])
+      if (month < 1 || month > 12) {
+        wx.showToast({ title: '请选择正确的月份', icon: 'none' })
+        return null
+      }
+      start = new Date(year, month - 1, 1)
+      const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1
+      end = isCurrentMonth ? now : endOfDay(new Date(year, month, 0))
     }
-    try {
-      const data = await api.call('listMyOrders', { page: 1, pageSize: PAGE_SIZE })
+
+    if (!start || !end) return null
+    return { start: start.getTime(), end: end.getTime() }
+  },
+
+  buildStaffQuery(page) {
+    const range = this.getRangeParams()
+    if (!range) return null
+    const query = {
+      page,
+      pageSize: PAGE_SIZE,
+      start: range.start,
+      end: range.end
+    }
+    if (this.data.customerId) query.customerId = this.data.customerId
+    if (this.data.isAdmin && this.data.salesId) query.salesId = this.data.salesId
+    return query
+  },
+
+  async load(reset, fromPullDown) {
+    const seq = (this.loadSeq || 0) + 1
+    this.loadSeq = seq
+    if (reset) {
       this.setData({
-        list: (data.list || []).map(decorate),
+        page: 1,
+        hasMore: true,
+        error: '',
+        loading: true,
+        loadingMore: false,
+        selectedIds: [],
+        selectedCount: 0
+      })
+    }
+
+    let action = 'listMyOrders'
+    let payload = { page: 1, pageSize: PAGE_SIZE }
+    if (this.data.isStaff) {
+      const query = this.buildStaffQuery(1)
+      if (!query) {
+        this.setData({ loading: false })
+        if (fromPullDown) wx.stopPullDownRefresh()
+        return
+      }
+      action = 'listStaffOrders'
+      payload = query
+    }
+
+    try {
+      const data = await api.call(action, payload)
+      if (seq !== this.loadSeq) return
+      const selectedIds = reset ? [] : this.data.selectedIds
+      const selectedSet = new Set(selectedIds)
+      this.setData({
+        list: (data.list || []).map(order => ({
+          ...decorate(order),
+          selected: selectedSet.has(order._id)
+        })),
         page: 1,
         hasMore: Boolean(data.hasMore),
         loading: false
       })
     } catch (err) {
+      if (seq !== this.loadSeq) return
       this.setData({ loading: false, error: err.message || '加载失败' })
     } finally {
       if (fromPullDown) wx.stopPullDownRefresh()
@@ -82,21 +221,183 @@ Page({
 
   async loadMore() {
     if (!this.data.hasMore || this.data.loadingMore || this.data.loading) return
+    const seq = this.loadSeq || 0
     const nextPage = this.data.page + 1
+
+    let action = 'listMyOrders'
+    let payload = { page: nextPage, pageSize: PAGE_SIZE }
+    if (this.data.isStaff) {
+      const query = this.buildStaffQuery(nextPage)
+      if (!query) return
+      action = 'listStaffOrders'
+      payload = query
+    }
+
     this.setData({ loadingMore: true })
     try {
-      const data = await api.call('listMyOrders', { page: nextPage, pageSize: PAGE_SIZE })
-      const more = (data.list || []).map(decorate)
+      const data = await api.call(action, payload)
+      if (seq !== this.loadSeq) return
+      const selectedSet = new Set(this.data.selectedIds)
+      const more = (data.list || []).map(order => ({
+        ...decorate(order),
+        selected: selectedSet.has(order._id)
+      }))
       this.setData({
         list: this.data.list.concat(more),
         page: nextPage,
-        hasMore: Boolean(data.hasMore),
-        loadingMore: false
+        hasMore: Boolean(data.hasMore)
       })
     } catch (err) {
-      this.setData({ loadingMore: false })
-      api.toastError(err)
+      if (seq === this.loadSeq) api.toastError(err)
+    } finally {
+      if (seq === this.loadSeq) this.setData({ loadingMore: false })
     }
+  },
+
+  async loadSalesOptions() {
+    this.salesLoaded = true
+    try {
+      const data = await api.call('listSalesOptions')
+      const options = [{ _id: '', name: '全部销售' }].concat(data.list || [])
+      this.setData({
+        salesOptions: options,
+        salesNames: options.map(item => item.name || '未命名销售'),
+        salesIndex: 0,
+        salesId: ''
+      })
+    } catch (err) {
+      this.salesLoaded = false
+      console.warn('load sales options failed', err)
+    }
+  },
+
+  async loadCustomerOptions() {
+    this.customersLoaded = true
+    try {
+      const data = await api.call('listCustomerOptions')
+      const options = [{ _id: '', name: '全部客户', label: '全部客户' }].concat(
+        (data.list || []).map(item => ({
+          ...item,
+          label: item.name
+            ? `${item.name}${item.phone ? `（${item.phone}）` : ''}`
+            : (item.phone || item.shopName || '未命名客户')
+        }))
+      )
+      this.setData({
+        customerOptions: options,
+        customerNames: options.map(item => item.label),
+        customerIndex: 0,
+        customerId: ''
+      })
+    } catch (err) {
+      this.customersLoaded = false
+      console.warn('load customer options failed', err)
+    }
+  },
+
+  selectRange(event) {
+    const value = event.currentTarget.dataset.value
+    if (!value || value === this.data.rangeType) return
+    this.setData({ rangeType: value })
+    this.load(true)
+  },
+
+  onMonthChange(event) {
+    const value = event.detail.value
+    if (!value) return
+    this.setData({ monthValue: value, rangeType: 'month' })
+    this.load(true)
+  },
+
+  onCustomerChange(event) {
+    const index = Number(event.detail.value) || 0
+    const option = this.data.customerOptions[index] || { _id: '' }
+    this.setData({ customerIndex: index, customerId: option._id || '' })
+    this.load(true)
+  },
+
+  toggleOrderSelect(event) {
+    const id = event.currentTarget.dataset.id
+    if (!id) return
+    const selectedIds = this.data.selectedIds.slice()
+    const index = selectedIds.indexOf(id)
+    if (index >= 0) {
+      selectedIds.splice(index, 1)
+    } else {
+      if (selectedIds.length >= 100) {
+        wx.showToast({ title: '一次最多选择 100 单', icon: 'none' })
+        return
+      }
+      selectedIds.push(id)
+    }
+    const list = this.data.list.map(item => item._id === id
+      ? { ...item, selected: index < 0 }
+      : item)
+    this.setData({
+      selectedIds,
+      selectedCount: selectedIds.length,
+      list
+    })
+  },
+
+  async exportOrders() {
+    if (this.data.exporting) return
+    if (!this.data.selectedIds.length) {
+      wx.showToast({ title: '请先勾选要导出的订单', icon: 'none' })
+      return
+    }
+
+    this.setData({ exporting: true })
+    try {
+      const data = await api.call('exportStaffOrders', { ids: this.data.selectedIds })
+      this.saveExcel(data)
+    } catch (err) {
+      api.toastError(err)
+    } finally {
+      this.setData({ exporting: false })
+    }
+  },
+
+  saveExcel(data) {
+    if (!data || !data.base64) {
+      wx.showToast({ title: '导出文件生成失败', icon: 'none' })
+      return
+    }
+    const filePath = `${wx.env.USER_DATA_PATH}/${data.filename || '订单导出.xlsx'}`
+    wx.getFileSystemManager().writeFile({
+      filePath,
+      data: data.base64,
+      encoding: 'base64',
+      success: () => {
+        if (data.truncated) {
+          wx.showToast({ title: `仅导出最近 ${data.orderCount} 单`, icon: 'none', duration: 2400 })
+        }
+        wx.openDocument({
+          filePath,
+          fileType: 'xlsx',
+          showMenu: true,
+          fail: () => {
+            if (typeof wx.shareFileMessage === 'function') {
+              wx.shareFileMessage({
+                filePath,
+                fileName: data.filename || '订单导出.xlsx',
+                fail: () => wx.showToast({ title: '文件已生成，请稍后重试', icon: 'none' })
+              })
+            } else {
+              wx.showToast({ title: '当前版本不支持打开该文件', icon: 'none' })
+            }
+          }
+        })
+      },
+      fail: () => wx.showToast({ title: '文件保存失败', icon: 'none' })
+    })
+  },
+
+  onSalesChange(event) {
+    const index = Number(event.detail.value) || 0
+    const option = this.data.salesOptions[index] || { _id: '' }
+    this.setData({ salesIndex: index, salesId: option._id || '' })
+    this.load(true)
   },
 
   goDetail(event) {

@@ -3,9 +3,18 @@
     <div class="page-head">
       <div>
         <h2>订单</h2>
-        <p class="sub">客户在小程序提交的订单会出现在这里，无需在线支付</p>
+        <p class="sub"></p>
       </div>
-      <el-button :loading="loading" @click="load">刷新</el-button>
+      <div class="head-actions">
+        <el-button
+          type="primary"
+          plain
+          :loading="exporting"
+          :disabled="!selectedOrders.length"
+          @click="exportOrders"
+        >导出选中{{ selectedOrders.length ? `（${selectedOrders.length}）` : '' }}</el-button>
+        <el-button :loading="loading" @click="load">刷新</el-button>
+      </div>
     </div>
 
     <div class="toolbar">
@@ -44,7 +53,14 @@
       <span class="total">共 {{ total }} 单</span>
     </div>
 
-    <el-table v-loading="loading" :data="list" row-key="_id" empty-text="还没有订单">
+    <el-table
+      v-loading="loading"
+      :data="list"
+      row-key="_id"
+      empty-text="还没有订单"
+      @selection-change="onSelectionChange"
+    >
+      <el-table-column type="selection" width="48" />
       <el-table-column label="订单" width="190">
         <template #default="{ row }">
           <div class="mono">{{ row.orderNo }}</div>
@@ -60,6 +76,11 @@
       </el-table-column>
       <el-table-column label="负责销售" width="110">
         <template #default="{ row }">{{ row.salesName || '—' }}</template>
+      </el-table-column>
+      <el-table-column label="来源" width="110">
+        <template #default="{ row }">
+          <el-tag :type="orderSourceType(row)" effect="light">{{ orderSourceText(row) }}</el-tag>
+        </template>
       </el-table-column>
       <el-table-column label="商品" min-width="180">
         <template #default="{ row }">
@@ -117,6 +138,10 @@
           <div class="detail-row"><span>手机号</span><b>{{ current.phone }}</b></div>
           <div class="detail-row" v-if="current.shopName"><span>店铺名称</span><b>{{ current.shopName }}</b></div>
           <div class="detail-row" v-if="current.salesName"><span>负责销售</span><b>{{ current.salesName }}</b></div>
+          <div class="detail-row"><span>订单来源</span><b>{{ orderSourceText(current) }}</b></div>
+          <div class="detail-row" v-if="current.orderSource === 'ASSIST'">
+            <span>帮下单人</span><b>{{ current.assistedByName || current.salesName || '—' }}</b>
+          </div>
           <div class="detail-row" v-if="current.address"><span>收货地址</span><b>{{ current.address }}</b></div>
           <div class="detail-row"><span>备注</span><b>{{ current.remark || '—' }}</b></div>
         </div>
@@ -165,6 +190,8 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = 10
 const loading = ref(false)
+const exporting = ref(false)
+const selectedOrders = ref([])
 const filters = reactive({ status: '', salesId: '', keyword: '' })
 const salesList = ref([])
 
@@ -179,8 +206,56 @@ function totalQuantity(row) {
   return (row.items || []).reduce((total, item) => total + (Number(item.quantity) || 0), 0)
 }
 
+function orderSourceText(row) {
+  return row && row.orderSource === 'ASSIST' ? '销售帮下单' : '客户自建'
+}
+
+function orderSourceType(row) {
+  return row && row.orderSource === 'ASSIST' ? 'warning' : 'success'
+}
+
+function downloadBase64File(base64, filename) {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+  const blob = new Blob([bytes], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename || '订单导出.xlsx'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+function onSelectionChange(rows) {
+  selectedOrders.value = rows || []
+}
+
+async function exportOrders() {
+  if (exporting.value || !selectedOrders.value.length) return
+  exporting.value = true
+  try {
+    const data = await api.exportOrders({
+      ids: selectedOrders.value.map(row => row._id).join(',')
+    })
+    downloadBase64File(data.base64, data.filename)
+    ElMessage.success(`已导出 ${data.orderCount} 单`)
+  } catch (err) {
+    ElMessage.error(err.message)
+  } finally {
+    exporting.value = false
+  }
+}
+
 async function load() {
   loading.value = true
+  selectedOrders.value = []
   try {
     const data = await api.orders({
       status: filters.status || '',
@@ -256,6 +331,12 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .mono {
   font-family: 'DIN Alternate', Consolas, monospace;
   font-size: 13px;

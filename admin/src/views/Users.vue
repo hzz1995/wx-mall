@@ -57,11 +57,11 @@
           <span :class="{ muted: !row.salesName }">{{ row.salesName || '—' }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="可售商品" width="110">
+      <el-table-column label="可售分类" width="110">
         <template #default="{ row }">
           <span v-if="row.type !== 'KH'" class="muted">—</span>
-          <span v-else :class="{ muted: !row.productIds || !row.productIds.length }">
-            {{ row.productIds && row.productIds.length ? `${row.productIds.length} 件` : '全部' }}
+          <span v-else :class="{ muted: !row.categoryIds || !row.categoryIds.length }">
+            {{ row.categoryIds && row.categoryIds.length ? `${row.categoryIds.length} 个` : '全部' }}
           </span>
         </template>
       </el-table-column>
@@ -73,10 +73,13 @@
       <el-table-column label="创建时间" width="150">
         <template #default="{ row }">{{ time(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="160" fixed="right">
+      <el-table-column label="操作" width="250" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-          <el-button link type="warning" @click="resetPassword(row)">重置密码</el-button>
+          <template v-if="row._id !== currentUserId">
+            <el-button link type="warning" @click="openSetPassword(row)">修改密码</el-button>
+            <el-button link type="info" @click="resetPassword(row)">重置密码</el-button>
+          </template>
         </template>
       </el-table-column>
     </el-table>
@@ -123,28 +126,20 @@
           </el-select>
           <div v-if="!salesList.length" class="form-hint">还没有销售账号，请先创建一个类型为销售的账号</div>
         </el-form-item>
-        <el-form-item v-if="form.type === 'KH'" label="可售商品">
+        <el-form-item v-if="form.type === 'KH'" label="可售分类">
           <el-select
-            v-model="form.productIds"
+            v-model="form.categoryIds"
             multiple
             filterable
-            remote
             clearable
             collapse-tags
             collapse-tags-tooltip
-            :remote-method="searchProducts"
-            :loading="productLoading"
-            placeholder="输入商品名称搜索；不选择则显示全部商品"
+            placeholder="不选择则显示全部分类商品"
             style="width: 100%"
           >
-            <el-option
-              v-for="item in productsList"
-              :key="item._id"
-              :label="item.status === 'OFF' ? `${item.name}（已下架）` : item.name"
-              :value="item._id"
-            />
+            <el-option v-for="item in categoriesList" :key="item._id" :label="item.name" :value="item._id" />
           </el-select>
-          <div class="form-hint">不选择表示可查看全部商品；选择后仅显示并允许购买绑定的商品</div>
+          <div class="form-hint">不选择表示可查看全部分类；选择后仅显示这些分类下的商品</div>
         </el-form-item>
         <el-form-item label="账号状态">
           <el-switch v-model="form.enabled" active-text="启用" inactive-text="停用" />
@@ -155,14 +150,36 @@
         <el-button type="primary" :loading="saving" @click="save">保存</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="passwordDialogVisible" title="修改密码" width="460px" destroy-on-close>
+      <el-form label-width="100px">
+        <el-form-item label="用户">
+          <span>{{ passwordForm.name }}</span>
+        </el-form-item>
+        <el-form-item label="新密码" required>
+          <el-input v-model="passwordForm.password" type="password" show-password maxlength="32" placeholder="6-32 位" />
+        </el-form-item>
+        <el-form-item label="确认新密码" required>
+          <el-input v-model="passwordForm.confirm" type="password" show-password maxlength="32" placeholder="再次输入新密码" @keyup.enter="saveSetPassword" />
+        </el-form-item>
+      </el-form>
+      <div class="form-hint">修改后该用户需要重新登录。</div>
+      <template #footer>
+        <el-button @click="passwordDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="passwordSaving" @click="saveSetPassword">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { api } from '../api'
+import { api, getAdminUser } from '../api'
 import { time } from '../utils'
+
+const adminUser = getAdminUser()
+const currentUserId = adminUser ? adminUser._id : ''
 
 const TYPE_META = {
   KH: { label: '客户', type: 'success' },
@@ -173,17 +190,18 @@ const TYPE_META = {
 
 const list = ref([])
 const salesList = ref([])
-const productsList = ref([])
-const productLoading = ref(false)
-let productSearchSeq = 0
+const categoriesList = ref([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = 10
 const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
+const passwordDialogVisible = ref(false)
+const passwordSaving = ref(false)
 const filters = reactive({ type: '', keyword: '' })
 const form = reactive(createEmptyForm())
+const passwordForm = reactive({ _id: '', name: '', password: '', confirm: '' })
 
 function createEmptyForm() {
   return {
@@ -195,7 +213,7 @@ function createEmptyForm() {
     shopName: '',
     address: '',
     salesId: '',
-    productIds: [],
+    categoryIds: [],
     enabled: true
   }
 }
@@ -231,53 +249,12 @@ async function loadSales() {
   }
 }
 
-async function searchProducts(keyword) {
-  const seq = ++productSearchSeq
-  productLoading.value = true
+async function loadCategories() {
   try {
-    const data = await api.products({
-      keyword: String(keyword || '').trim(),
-      page: 1,
-      pageSize: 20,
-      simple: 1
-    })
-    if (seq !== productSearchSeq) return
-    const selectedIds = new Set(form.productIds)
-    const merged = new Map()
-    productsList.value
-      .filter(item => selectedIds.has(item._id))
-      .forEach(item => merged.set(item._id, item))
-    ;(data.list || []).forEach(item => merged.set(item._id, item))
-    productsList.value = Array.from(merged.values())
+    const data = await api.categories()
+    categoriesList.value = data.list || []
   } catch (err) {
-    if (seq !== productSearchSeq) return
     ElMessage.error(err.message)
-  } finally {
-    if (seq === productSearchSeq) productLoading.value = false
-  }
-}
-
-async function loadSelectedProducts(ids) {
-  if (!ids.length) {
-    productsList.value = []
-    return
-  }
-  const seq = ++productSearchSeq
-  productLoading.value = true
-  try {
-    const data = await api.products({ ids: ids.join(','), pageSize: 100, simple: 1 })
-    if (seq !== productSearchSeq) return
-    const list = data.list || []
-    productsList.value = list
-    if (list.length !== ids.length) {
-      const found = new Set(list.map(item => item._id))
-      form.productIds = form.productIds.filter(id => found.has(id))
-    }
-  } catch (err) {
-    if (seq !== productSearchSeq) return
-    ElMessage.error(err.message)
-  } finally {
-    if (seq === productSearchSeq) productLoading.value = false
   }
 }
 
@@ -293,9 +270,7 @@ function onPage(value) {
 
 function openCreate() {
   Object.assign(form, createEmptyForm())
-  productsList.value = []
   dialogVisible.value = true
-  searchProducts('')
 }
 
 function openEdit(row) {
@@ -308,18 +283,16 @@ function openEdit(row) {
     shopName: row.shopName || '',
     address: row.address || '',
     salesId: row.salesId || '',
-    productIds: Array.isArray(row.productIds) ? row.productIds.slice() : [],
+    categoryIds: Array.isArray(row.categoryIds) ? row.categoryIds.slice() : [],
     enabled: row.enabled !== false
   })
   dialogVisible.value = true
-  loadSelectedProducts(form.productIds)
 }
 
 function onTypeChange(value) {
   if (value !== 'KH') {
     form.salesId = ''
-    form.productIds = []
-    productsList.value = []
+    form.categoryIds = []
   }
 }
 
@@ -358,7 +331,7 @@ async function save() {
     shopName: form.shopName.trim(),
     address: form.address.trim(),
     salesId: form.type === 'KH' ? form.salesId : '',
-    productIds: form.type === 'KH' ? form.productIds : [],
+    categoryIds: form.type === 'KH' ? form.categoryIds : [],
     enabled: form.enabled
   }
   if (!form._id) payload.password = form.password
@@ -391,6 +364,37 @@ async function toggleEnabled(row, value) {
   }
 }
 
+function openSetPassword(row) {
+  Object.assign(passwordForm, {
+    _id: row._id,
+    name: row.name,
+    password: '',
+    confirm: ''
+  })
+  passwordDialogVisible.value = true
+}
+
+async function saveSetPassword() {
+  if (passwordForm.password.length < 6 || passwordForm.password.length > 32) {
+    ElMessage.warning('新密码需为 6-32 位')
+    return
+  }
+  if (passwordForm.password !== passwordForm.confirm) {
+    ElMessage.warning('两次输入的新密码不一致')
+    return
+  }
+  passwordSaving.value = true
+  try {
+    await api.resetUserPassword(passwordForm._id, passwordForm.password)
+    ElMessage.success('密码已修改，该用户需要重新登录')
+    passwordDialogVisible.value = false
+  } catch (err) {
+    ElMessage.error(err.message)
+  } finally {
+    passwordSaving.value = false
+  }
+}
+
 async function resetPassword(row) {
   try {
     await ElMessageBox.confirm(
@@ -413,5 +417,6 @@ async function resetPassword(row) {
 onMounted(() => {
   load()
   loadSales()
+  loadCategories()
 })
 </script>

@@ -31,8 +31,12 @@
     </view>
 
     <view class="menu">
-      <view class="menu-item" wx:if="{{user.type === 'KH'}}" bindtap="goOrders">
-        <view class="menu-text">我的订单</view>
+      <view class="menu-item" wx:if="{{user.type === 'XS'}}" bindtap="goCustomers">
+        <view class="menu-text">我的客户</view>
+        <view class="menu-arrow">›</view>
+      </view>
+      <view class="menu-item" wx:if="{{user.type === 'KH' || user.type === 'XS' || user.type === 'GLY'}}" bindtap="goOrders">
+        <view class="menu-text">{{user.type === 'KH' ? '我的订单' : '客户订单'}}</view>
         <view class="menu-arrow">›</view>
       </view>
       <view class="menu-item" bindtap="goProfile">

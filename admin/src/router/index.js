@@ -11,6 +11,7 @@ import Reports from '../views/Reports.vue'
 import AuditLogs from '../views/AuditLogs.vue'
 import Qrcode from '../views/Qrcode.vue'
 import Settings from '../views/Settings.vue'
+import Profile from '../views/Profile.vue'
 import { getAdminUser } from '../api'
 
 function homeFor(user) {
@@ -35,7 +36,8 @@ const router = createRouter({
         { path: 'customers', component: Customers, meta: { title: '客户汇总', roles: ['GLY', 'XS'] } },
         { path: 'reports', component: Reports, meta: { title: '数据报表', roles: ['GLY'] } },
         { path: 'qrcode', component: Qrcode, meta: { title: '小程序码', roles: ['GLY'] } },
-        { path: 'settings', component: Settings, meta: { title: '店铺设置', roles: ['GLY'] } }
+        { path: 'settings', component: Settings, meta: { title: '店铺设置', roles: ['GLY'] } },
+        { path: 'profile', component: Profile, meta: { title: '个人中心', roles: ['GLY', 'XS', 'YY'] } }
       ]
     },
     { path: '/:pathMatch(.*)*', redirect: '/orders' }

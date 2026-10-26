@@ -127,6 +127,7 @@ body {
 }
 
 .el-message-box {
+  width: 460px;
   max-width: 90vw;
 }
 

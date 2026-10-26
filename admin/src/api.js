@@ -150,11 +150,20 @@ export const api = {
   updateUser(id, body) {
     return request(`/users/${id}`, { method: 'PUT', body })
   },
-  resetUserPassword(id) {
-    return request(`/users/${id}/password`, { method: 'POST', body: {} })
+  resetUserPassword(id, password) {
+    return request(`/users/${id}/password`, {
+      method: 'POST',
+      body: password ? { password } : {}
+    })
+  },
+  changeMyPassword(body) {
+    return request('/me/password', { method: 'POST', body })
   },
   orders(params) {
     return request(`/orders${toQuery(params)}`)
+  },
+  exportOrders(params) {
+    return request(`/orders/export${toQuery(params)}`)
   },
   order(id) {
     return request(`/orders/${id}`)
@@ -174,6 +183,9 @@ export const api = {
   deleteProduct(id) {
     return request(`/products/${id}`, { method: 'DELETE' })
   },
+  batchUpdateProducts(body) {
+    return request('/products/batch', { method: 'POST', body })
+  },
   categories() {
     return request('/categories')
   },
@@ -188,6 +200,9 @@ export const api = {
   },
   customers(params) {
     return request(`/customers${toQuery(params)}`)
+  },
+  createCustomer(body) {
+    return request('/customers', { method: 'POST', body })
   },
   reports(params) {
     return request(`/reports${toQuery(params)}`)

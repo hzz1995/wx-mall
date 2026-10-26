@@ -1,6 +1,6 @@
 const api = require('../../utils/api')
 const { formatPrice, formatTime, STATUS_TEXT } = require('../../utils/format')
-const { getToken, requireLogin } = require('../../utils/session')
+const { getToken, getUser, requireLogin } = require('../../utils/session')
 
 Page({
   data: {
@@ -8,7 +8,9 @@ Page({
     loading: true,
     error: '',
     created: false,
-    serviceWechat: ''
+    serviceWechat: '',
+    isCustomer: false,
+    isStaff: false
   },
 
   onLoad(options) {
@@ -17,7 +19,13 @@ Page({
       return
     }
     this.orderId = id
-    this.setData({ created: Boolean(options && options.created === '1') })
+    const user = getUser()
+    const type = user && user.type
+    this.setData({
+      created: Boolean(options && options.created === '1'),
+      isCustomer: type === 'KH',
+      isStaff: type === 'XS' || type === 'GLY'
+    })
     this.load(this.orderId)
     this.loadSettings()
   },
@@ -82,6 +90,6 @@ Page({
   },
 
   goOrders() {
-    wx.switchTab({ url: '/pages/orders/index' })
+    wx.redirectTo({ url: '/pages/orders/index' })
   }
 })

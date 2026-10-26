@@ -25,8 +25,13 @@ function isCloudFile(value) {
 
 function serializeProduct(product) {
   if (!product) return null
+  const categoryIds = Array.isArray(product.categoryIds) && product.categoryIds.length
+    ? product.categoryIds.map(String)
+    : (product.categoryId ? [String(product.categoryId)] : [])
   return {
     ...product,
+    categoryId: product.categoryId || categoryIds[0] || '',
+    categoryIds,
     price: Number(product.price) || 0,
     originalPrice: Number(product.originalPrice) || 0,
     sales: Number(product.sales) || 0,
@@ -34,6 +39,7 @@ function serializeProduct(product) {
     images: Array.isArray(product.images) ? product.images : [],
     videos: Array.isArray(product.videos) ? product.videos : [],
     spec: product.spec || '',
+    validUntil: product.validUntil || '',
     productionDate: product.productionDate || '',
     origin: product.origin || '',
     createdAt: toTimestamp(product.createdAt),
@@ -51,6 +57,8 @@ function serializeOrder(order) {
       price: Number(item.price) || 0,
       quantity: Number(item.quantity) || 0
     })),
+    orderSource: order.orderSource || 'SELF',
+    assistedByName: order.assistedByName || '',
     createdAt: toTimestamp(order.createdAt),
     updatedAt: toTimestamp(order.updatedAt)
   }

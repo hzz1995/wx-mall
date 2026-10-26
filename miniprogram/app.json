@@ -8,6 +8,8 @@
     "pages/checkout/index",
     "pages/orders/index",
     "pages/order-detail/index",
+    "pages/customers/index",
+    "pages/assist-order/index",
     "pages/profile/index",
     "pages/password/index"
   ],

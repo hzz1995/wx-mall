@@ -17,7 +17,6 @@ Page({
     products: [],
     activeCategory: 'all',
     keyword: '',
-    sort: 'default',
     page: 1,
     hasMore: true,
     cartCount: 0,
@@ -82,12 +81,19 @@ Page({
   },
 
   decorate(products) {
-    return (products || []).map(item => ({
-      ...item,
-      priceText: formatPrice(item.price),
-      originalPriceText: formatPrice(item.originalPrice),
-      initial: (item.name || '·').slice(0, 1)
-    }))
+    return (products || []).map(item => {
+      const price = Number(item.price) || 0
+      const originalPrice = Number(item.originalPrice) || 0
+      const hasDiscount = originalPrice > price
+      return {
+        ...item,
+        priceText: formatPrice(price),
+        originalPriceText: formatPrice(originalPrice),
+        hasDiscount,
+        discountText: formatPrice(hasDiscount ? originalPrice - price : 0),
+        initial: (item.name || '·').slice(0, 1)
+      }
+    })
   },
 
   buildQuery(page) {
@@ -95,8 +101,7 @@ Page({
       page,
       pageSize: PAGE_SIZE,
       categoryId: this.data.activeCategory,
-      keyword: this.data.keyword.trim(),
-      sort: this.data.sort
+      keyword: this.data.keyword.trim()
     }
   },
 
@@ -211,13 +216,6 @@ Page({
     this.reloadProducts()
   },
 
-  changeSort(event) {
-    const sort = event.currentTarget.dataset.sort
-    if (sort === this.data.sort) return
-    this.setData({ sort })
-    this.reloadProducts()
-  },
-
   goProduct(event) {
     wx.navigateTo({ url: `/pages/product/index?id=${event.currentTarget.dataset.id}` })
   },
@@ -292,26 +290,6 @@ Page({
     } finally {
       this.setData({ addingId: '' })
     }
-  },
-
-  contactService() {
-    const wechat = this.data.settings.serviceWechat
-    if (!wechat) {
-      wx.showModal({ title: '联系店主', content: '店主还没有设置客服微信号', showCancel: false })
-      return
-    }
-    wx.showModal({
-      title: '客服微信',
-      content: wechat,
-      confirmText: '复制',
-      success: res => {
-        if (!res.confirm) return
-        wx.setClipboardData({
-          data: wechat,
-          success: () => wx.showToast({ title: '微信号已复制', icon: 'none' })
-        })
-      }
-    })
   },
 
   goCart() {

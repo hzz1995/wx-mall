@@ -1,6 +1,52 @@
 <view class="page orders">
   <view class="head">
-    <view class="head-title">我的订单</view>
+    <view class="head-title">{{isCustomer ? '我的订单' : '客户订单'}}</view>
+    <view
+      wx:if="{{isStaff}}"
+      class="export-btn {{selectedCount ? '' : 'disabled'}}"
+      bindtap="exportOrders"
+    >{{exporting ? '导出中…' : '导出 Excel' + (selectedCount ? '（' + selectedCount + '）' : '')}}</view>
+  </view>
+
+  <view class="staff-filters" wx:if="{{isStaff}}">
+    <view class="picker-row">
+      <picker mode="selector" range="{{customerNames}}" value="{{customerIndex}}" bindchange="onCustomerChange">
+        <view class="select-pill">客户：{{customerNames[customerIndex]}} ▾</view>
+      </picker>
+      <picker
+        wx:if="{{isAdmin}}"
+        mode="selector"
+        range="{{salesNames}}"
+        value="{{salesIndex}}"
+        bindchange="onSalesChange"
+      >
+        <view class="select-pill">销售：{{salesNames[salesIndex]}} ▾</view>
+      </picker>
+    </view>
+
+    <scroll-view class="range-scroll" scroll-x enable-flex>
+      <view
+        wx:for="{{rangeOptions}}"
+        wx:key="value"
+        class="range-chip {{rangeType === item.value ? 'active' : ''}}"
+        data-value="{{item.value}}"
+        bindtap="selectRange"
+      >{{item.label}}</view>
+    </scroll-view>
+
+    <view class="month-row">
+      <view class="month-label">按月份</view>
+      <picker
+        mode="date"
+        fields="month"
+        value="{{monthValue}}"
+        start="{{monthStart}}"
+        end="{{monthEnd}}"
+        bindchange="onMonthChange"
+      >
+        <view class="month-pill {{rangeType === 'month' ? 'active' : ''}}">{{monthValue}} ▾</view>
+      </picker>
+    </view>
   </view>
 
   <view class="list" wx:if="{{list.length}}">
@@ -12,9 +58,30 @@
       bindtap="goDetail"
     >
       <view class="order-top">
-        <view class="order-no">{{item.orderNo}}</view>
-        <view class="tag {{item.statusClass}}">{{item.statusText}}</view>
+        <view class="order-top-left">
+          <view
+            wx:if="{{isStaff}}"
+            class="order-check {{item.selected ? 'checked' : ''}}"
+            data-id="{{item._id}}"
+            catchtap="toggleOrderSelect"
+          >
+            <view wx:if="{{item.selected}}" class="order-check-mark">✓</view>
+          </view>
+          <view class="order-no">{{item.orderNo}}</view>
+        </view>
+        <view class="order-tags">
+          <view class="source-tag {{item.orderSource === 'ASSIST' ? 'assist' : ''}}">{{item.orderSource === 'ASSIST' ? '销售帮下单' : '客户自建'}}</view>
+          <view class="tag {{item.statusClass}}">{{item.statusText}}</view>
+        </view>
       </view>
+
+      <view class="order-customer" wx:if="{{isStaff}}">
+        <text>{{item.customerName || '未填写'}}</text>
+        <text wx:if="{{item.shopName}}"> · {{item.shopName}}</text>
+        <text wx:if="{{item.phone}}"> · {{item.phone}}</text>
+      </view>
+      <view class="order-sales" wx:if="{{isAdmin}}">所属销售：{{item.salesName || '—'}}</view>
+
       <view class="order-body">
         <view class="thumb">
           <image wx:if="{{item.itemImage}}" class="thumb-img" src="{{item.itemImage}}" mode="aspectFill" />
@@ -30,7 +97,7 @@
       <view class="order-bottom">
         <view class="order-time">{{item.createdAtText}}</view>
         <view class="order-actions">
-          <view class="reorder-btn" data-index="{{index}}" catchtap="reorder">再来一单</view>
+          <view wx:if="{{isCustomer}}" class="reorder-btn" data-index="{{index}}" catchtap="reorder">再来一单</view>
           <view class="order-more">详情 ›</view>
         </view>
       </view>
@@ -46,9 +113,10 @@
     <view class="state-action" bindtap="load">重新加载</view>
   </view>
   <view wx:else class="state">
-    还没有订单
-    <view class="state-hint">去挑几件喜欢的商品吧</view>
-    <view class="state-btn">
+    {{isCustomer ? '还没有订单' : '暂无符合条件的订单'}}
+    <view class="state-hint" wx:if="{{isCustomer}}">去挑几件喜欢的商品吧</view>
+    <view class="state-hint" wx:if="{{!isCustomer}}">可以换个时间范围或客户</view>
+    <view class="state-btn" wx:if="{{isCustomer}}">
       <button class="btn btn-primary" bindtap="goShopping">去逛逛</button>
     </view>
   </view>

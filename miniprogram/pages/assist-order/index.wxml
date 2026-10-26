@@ -1,0 +1,123 @@
+<view class="page assist-page">
+  <view wx:if="{{customerLoading}}" class="state">正在加载客户…</view>
+  <view wx:elif="{{customerError}}" class="state">
+    {{customerError}}
+    <view class="state-action" bindtap="loadCustomer">重试</view>
+  </view>
+
+  <block wx:else>
+    <view class="customer-card" wx:if="{{customer}}">
+      <view class="customer-head">
+        <view class="customer-name">{{customer.name || '未填写'}}</view>
+        <view class="status {{customer.enabled ? 'on' : 'off'}}">{{customer.enabled ? '正常' : '停用'}}</view>
+      </view>
+      <view class="customer-meta">{{customer.shopName || '未填写店铺'}} · {{customer.phone || '—'}}</view>
+      <view class="customer-address">{{customer.address || '未填写收货地址'}}</view>
+      <view class="binding-hint" wx:if="{{customer.categoryIds.length}}">该客户仅可购买绑定分类商品</view>
+    </view>
+
+    <view class="section-head">
+      <view class="section-title">选择商品</view>
+      <view class="selected-count" wx:if="{{selectedCount}}">已选 {{selectedCount}} 件</view>
+    </view>
+
+    <view class="search-bar">
+      <image class="search-icon" src="/images/icon-search.png" mode="aspectFit" />
+      <input
+        class="search-input"
+        value="{{keyword}}"
+        placeholder="搜索名称 / 规格 / 生产日期 / 产地"
+        placeholder-class="search-placeholder"
+        bindinput="onKeywordInput"
+      />
+    </view>
+
+    <view class="selected-card" wx:if="{{selected.length}}">
+      <view class="selected-item" wx:for="{{selected}}" wx:key="productId">
+        <view class="selected-name">{{item.name}}</view>
+        <view class="stepper">
+          <view class="step-btn" data-product-id="{{item.productId}}" data-delta="-1" catchtap="changeQty">−</view>
+          <view class="step-value">{{item.quantity}}</view>
+          <view class="step-btn" data-product-id="{{item.productId}}" data-delta="1" catchtap="changeQty">+</view>
+        </view>
+        <view class="selected-price">¥{{item.priceText}}</view>
+        <view class="remove" data-product-id="{{item.productId}}" catchtap="removeSelected">×</view>
+      </view>
+      <view class="selected-total">合计 <text class="amount">¥{{selectedTotalText}}</text></view>
+    </view>
+
+    <view class="product-list" wx:if="{{products.length}}">
+      <view class="product-item" wx:for="{{products}}" wx:key="_id">
+        <view class="thumb">
+          <image wx:if="{{item.cover}}" class="thumb-img" src="{{item.cover}}" mode="aspectFill" />
+          <view wx:else class="thumb-fallback">{{item.initial}}</view>
+        </view>
+        <view class="product-main">
+          <view class="product-name">{{item.name}}</view>
+          <view class="product-meta" wx:if="{{item.spec || item.validUntil || item.productionDate || item.origin}}">
+            <text wx:if="{{item.spec}}">{{item.spec}}</text>
+            <text wx:if="{{item.spec && (item.validUntil || item.productionDate || item.origin)}}"> · </text>
+            <text wx:if="{{item.validUntil}}">有效期至 {{item.validUntil}}</text>
+            <text wx:if="{{item.validUntil && (item.productionDate || item.origin)}}"> · </text>
+            <text wx:if="{{item.productionDate}}">{{item.productionDate}}</text>
+            <text wx:if="{{item.productionDate && item.origin}}"> · </text>
+            <text wx:if="{{item.origin}}">{{item.origin}}</text>
+          </view>
+          <view class="product-bottom">
+            <view class="price">¥{{item.priceText}}</view>
+            <view class="add-btn" data-id="{{item._id}}" catchtap="addProduct">添加</view>
+          </view>
+        </view>
+      </view>
+
+      <view class="load-more" wx:if="{{productLoadingMore}}">正在加载…</view>
+      <view class="load-more" wx:elif="{{!productHasMore}}">没有更多商品了</view>
+    </view>
+    <view wx:elif="{{productLoading}}" class="state">正在加载商品…</view>
+    <view wx:elif="{{productError}}" class="state">
+      {{productError}}
+      <view class="state-action" bindtap="loadProducts">重试</view>
+    </view>
+    <view wx:else class="state">该客户暂无可购买商品</view>
+
+    <view class="section-title">下单信息</view>
+    <view class="form-card">
+      <view class="form-label">收货地址</view>
+      <textarea
+        class="form-textarea"
+        value="{{address}}"
+        maxlength="200"
+        auto-height
+        bindinput="onAddressInput"
+        placeholder="请输入收货地址"
+        placeholder-class="form-placeholder"
+      />
+      <view class="form-label">备注</view>
+      <textarea
+        class="form-textarea short"
+        value="{{remark}}"
+        maxlength="200"
+        auto-height
+        bindinput="onRemarkInput"
+        placeholder="选填"
+        placeholder-class="form-placeholder"
+      />
+    </view>
+
+    <view class="bottom-space"></view>
+    <view class="action-bar">
+      <button
+        class="btn btn-ghost"
+        loading="{{addingCart}}"
+        disabled="{{addingCart || submitting}}"
+        bindtap="assistCart"
+      >加入客户购物车</button>
+      <button
+        class="btn btn-primary"
+        loading="{{submitting}}"
+        disabled="{{addingCart || submitting}}"
+        bindtap="assistOrder"
+      >创建订单</button>
+    </view>
+  </block>
+</view>

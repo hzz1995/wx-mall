@@ -66,6 +66,10 @@ Page({
     wx.navigateTo({ url: '/pages/login/index' })
   },
 
+  goCustomers() {
+    wx.navigateTo({ url: '/pages/customers/index' })
+  },
+
   goOrders() {
     wx.navigateTo({ url: '/pages/orders/index' })
   },

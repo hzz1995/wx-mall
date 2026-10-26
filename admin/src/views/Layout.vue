@@ -64,7 +64,8 @@ const ALL_MENUS = [
   { path: '/users', title: '用户管理', roles: ['GLY'] },
   { path: '/audit-logs', title: '操作日志', roles: ['GLY'] },
   { path: '/qrcode', title: '小程序码', roles: ['GLY'] },
-  { path: '/settings', title: '店铺设置', roles: ['GLY'] }
+  { path: '/settings', title: '店铺设置', roles: ['GLY'] },
+  { path: '/profile', title: '个人中心', roles: ['GLY', 'XS', 'YY'] }
 ]
 
 const roleLabel = computed(() => {

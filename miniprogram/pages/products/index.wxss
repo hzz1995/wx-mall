@@ -364,6 +364,11 @@
   margin-top: 14rpx;
 }
 
+.tag-soft.discount {
+  background: #fbeee8;
+  color: var(--accent);
+}
+
 .tag-soft {
   padding: 2rpx 12rpx;
   border-radius: 8rpx;
@@ -382,18 +387,28 @@
 }
 
 .price-wrap {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: baseline;
+  flex-wrap: nowrap;
   gap: 10rpx;
 }
 
 .price-wrap .price {
+  flex: 0 0 auto;
   font-size: 38rpx;
+  white-space: nowrap;
 }
 
-.original {
+.original-line {
+  margin-top: 8rpx;
   font-size: 21rpx;
+  line-height: 1.4;
   color: #b1aea3;
+}
+
+.original-price {
   text-decoration: line-through;
 }
 

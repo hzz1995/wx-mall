@@ -7,12 +7,6 @@
         <view class="header-title">全部商品</view>
       </view>
       <view class="shortcuts">
-        <view class="shortcut" bindtap="contactService">
-          <view class="shortcut-bubble">
-            <image class="shortcut-icon" src="/images/icon-service-light.png" mode="aspectFit" />
-          </view>
-          <text>客服</text>
-        </view>
         <view class="shortcut" bindtap="goCart">
           <view class="shortcut-bubble">
             <image class="shortcut-icon" src="/images/icon-cart-light.png" mode="aspectFit" />
@@ -33,7 +27,7 @@
       <image class="search-icon" src="/images/icon-search.png" mode="aspectFit" />
       <input
         class="search-input"
-        placeholder="搜索店内商品"
+        placeholder="搜索商品名称"
         placeholder-class="search-placeholder"
         value="{{keyword}}"
         confirm-type="search"
@@ -45,9 +39,6 @@
   </view>
 
   <view class="filter-row">
-    <view class="filter-pill {{sort === 'default' ? 'active' : ''}}" data-sort="default" bindtap="changeSort">综合</view>
-    <view class="filter-pill {{sort === 'sales' ? 'active' : ''}}" data-sort="sales" bindtap="changeSort">销量</view>
-    <view class="filter-pill {{sort === 'new' ? 'active' : ''}}" data-sort="new" bindtap="changeSort">最新</view>
     <view class="result-count">已加载 {{products.length}} 件</view>
   </view>
 
@@ -67,7 +58,7 @@
     <view class="state-action" bindtap="load">重新加载</view>
   </view>
 
-  <view wx:elif="{{loaded && !products.length && !keyword && activeCategory === 'all' && sort === 'default'}}" class="empty-panel">
+  <view wx:elif="{{loaded && !products.length && !keyword && activeCategory === 'all'}}" class="empty-panel">
     <view class="empty-mark">店</view>
     <view class="empty-title">店里还没有上架商品</view>
     <view class="empty-sub">店主在管理后台上架后，这里会自动展示</view>
@@ -111,20 +102,26 @@
           <view class="list-info">
             <view class="list-name">{{item.name}}</view>
             <view class="list-meta">已售 {{item.sales || 0}} 件</view>
-            <view class="list-extra" wx:if="{{item.spec || item.origin}}">
+            <view class="list-extra" wx:if="{{item.spec || item.validUntil || item.productionDate || item.origin}}">
               <text wx:if="{{item.spec}}">{{item.spec}}</text>
-              <text wx:if="{{item.spec && item.origin}}"> · </text>
+              <text wx:if="{{item.spec && (item.validUntil || item.productionDate || item.origin)}}"> · </text>
+              <text wx:if="{{item.validUntil}}">有效期至 {{item.validUntil}}</text>
+              <text wx:if="{{item.validUntil && (item.productionDate || item.origin)}}"> · </text>
+              <text wx:if="{{item.productionDate}}">{{item.productionDate}}</text>
+              <text wx:if="{{item.productionDate && item.origin}}"> · </text>
               <text wx:if="{{item.origin}}">{{item.origin}}</text>
             </view>
             <view class="list-tags">
               <text class="tag-soft">在售</text>
-              <text class="tag-soft" wx:if="{{item.originalPrice > item.price}}">有优惠</text>
+              <text class="tag-soft discount" wx:if="{{item.hasDiscount}}">省 ¥{{item.discountText}}</text>
               <text class="tag-soft" wx:if="{{item.hasVideo}}">含视频</text>
+            </view>
+            <view class="original-line" wx:if="{{item.hasDiscount}}">
+              原价 <text class="original-price">¥{{item.originalPriceText}}</text>
             </view>
             <view class="list-bottom">
               <view class="price-wrap">
                 <view class="price"><text class="yen">¥</text>{{item.priceText}}</view>
-                <view class="original" wx:if="{{item.originalPrice > item.price}}">¥{{item.originalPriceText}}</view>
               </view>
               <view
                 wx:if="{{canShop}}"
@@ -145,7 +142,7 @@
       <view wx:else class="empty-panel small">
         <view class="empty-title">没有符合条件的商品</view>
         <view class="empty-sub" wx:if="{{keyword}}">换个关键词试试</view>
-        <view class="empty-sub" wx:else>换个分类或排序试试</view>
+        <view class="empty-sub" wx:else>换个分类试试</view>
         <view class="empty-action" wx:if="{{keyword}}" bindtap="clearSearch">清空搜索</view>
       </view>
     </view>

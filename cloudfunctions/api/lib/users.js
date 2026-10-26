@@ -17,7 +17,7 @@ function sanitizeUser(user) {
     shopName: user.shopName || '',
     address: user.address || '',
     salesId: user.salesId || '',
-    productIds: Array.isArray(user.productIds) ? user.productIds.map(String) : [],
+    categoryIds: Array.isArray(user.categoryIds) ? user.categoryIds.map(String) : [],
     type: user.type,
     enabled: user.enabled !== false,
     createdAt: toTimestamp(user.createdAt),

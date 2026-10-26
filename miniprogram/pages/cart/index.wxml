@@ -70,18 +70,23 @@
       </view>
     </view>
 
-    <view class="dock safe-bottom">
-      <view class="select-all" bindtap="toggleAll">
-        <view class="check {{allChecked ? 'checked' : ''}}">
-          <view wx:if="{{allChecked}}" class="check-mark">✓</view>
+    <view class="dock">
+      <view class="dock-hint" wx:if="{{selectedCount > 0 && !reachMin}}">
+        满 ¥199 起订，还差 ¥{{shortfallText}}
+      </view>
+      <view class="dock-row">
+        <view class="select-all" bindtap="toggleAll">
+          <view class="check {{allChecked ? 'checked' : ''}}">
+            <view wx:if="{{allChecked}}" class="check-mark">✓</view>
+          </view>
+          <text>全选</text>
         </view>
-        <text>全选</text>
+        <view class="dock-main">
+          <view class="dock-label">合计（{{selectedCount}} 件）</view>
+          <view class="dock-total price"><text class="yen">¥</text>{{totalText}}</view>
+        </view>
+        <button class="btn btn-primary dock-btn" bindtap="checkout">去结算</button>
       </view>
-      <view class="dock-main">
-        <view class="dock-label">合计（{{selectedCount}} 件）</view>
-        <view class="dock-total price"><text class="yen">¥</text>{{totalText}}</view>
-      </view>
-      <button class="btn btn-primary dock-btn" bindtap="checkout">去结算</button>
     </view>
   </block>
 

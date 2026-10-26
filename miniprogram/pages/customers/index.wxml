@@ -1,0 +1,98 @@
+<view class="page customers-page">
+  <view class="head">
+    <view class="head-title">我的客户</view>
+    <view class="head-sub">{{monthLabel}} 客户与订单统计</view>
+  </view>
+
+  <view class="search-bar">
+    <image class="search-icon" src="/images/icon-search.png" mode="aspectFit" />
+    <input
+      class="search-input"
+      value="{{keyword}}"
+      placeholder="搜索客户名称 / 手机号 / 店铺"
+      placeholder-class="search-placeholder"
+      bindinput="onKeywordInput"
+    />
+    <view class="search-clear" wx:if="{{keyword}}" bindtap="clearKeyword">×</view>
+  </view>
+
+  <view class="filter-row">
+    <view class="filter-chip {{activeFilter === 'all' ? 'active' : ''}}" data-value="all" bindtap="selectFilter">全部</view>
+    <view class="filter-chip {{activeFilter === 'ordered' ? 'active' : ''}}" data-value="ordered" bindtap="selectFilter">本月已下单</view>
+    <view class="filter-chip {{activeFilter === 'unordered' ? 'active' : ''}}" data-value="unordered" bindtap="selectFilter">本月未下单</view>
+  </view>
+
+  <view class="summary-grid">
+    <view class="summary-card">
+      <view class="summary-label">共客户数</view>
+      <view class="summary-value">{{summary.totalCustomers || 0}}</view>
+    </view>
+    <view class="summary-card">
+      <view class="summary-label">本月已下单</view>
+      <view class="summary-value">{{summary.orderedCustomers || 0}}</view>
+    </view>
+    <view class="summary-card">
+      <view class="summary-label">本月未下单</view>
+      <view class="summary-value">{{summary.unorderedCustomers || 0}}</view>
+    </view>
+    <view class="summary-card">
+      <view class="summary-label">本月交易额</view>
+      <view class="summary-value amount">¥{{summaryAmountText}}</view>
+    </view>
+    <view class="summary-card wide">
+      <view class="summary-label">本月下单次数</view>
+      <view class="summary-value">{{summary.monthOrderCount || 0}}</view>
+    </view>
+  </view>
+
+  <view class="list" wx:if="{{filtered.length}}">
+    <view class="customer-card" wx:for="{{filtered}}" wx:key="userId">
+      <view class="customer-top">
+        <view class="avatar">{{item.initial}}</view>
+        <view class="customer-main">
+          <view class="customer-name">
+            {{item.name || '未填写'}}
+            <text class="status {{item.enabled ? 'on' : 'off'}}">{{item.enabled ? '正常' : '停用'}}</text>
+          </view>
+          <view class="customer-sub">{{item.shopName || '未填写店铺'}} · {{item.phone || '—'}}</view>
+        </view>
+        <view wx:if="{{item.enabled}}" class="assist-btn" data-id="{{item.userId}}" catchtap="goAssist">帮下单</view>
+        <view wx:else class="assist-btn disabled">已停用</view>
+      </view>
+
+      <view class="customer-address" wx:if="{{item.address}}">{{item.address}}</view>
+
+      <view class="stat-row">
+        <view class="stat-item">
+          <view class="stat-label">当月交易额</view>
+          <view class="stat-value amount">¥{{item.amountText}}</view>
+        </view>
+        <view class="stat-item">
+          <view class="stat-label">当月下单数</view>
+          <view class="stat-value">{{item.monthOrderCount}}</view>
+        </view>
+      </view>
+
+      <view class="change-row" wx:if="{{item.prevMonthAmount > 0 || item.changeAmount !== 0}}">
+        <text>较上月交易额</text>
+        <text class="change {{item.changeUp ? 'up' : ''}}{{item.changeDown ? 'down' : ''}}">
+          ¥{{item.changeText}} {{item.changeUp ? '↑' : (item.changeDown ? '↓' : '')}}
+        </text>
+      </view>
+
+      <view class="sales-row">负责销售：{{item.salesName || '—'}}</view>
+    </view>
+
+    <view class="truncated" wx:if="{{truncated}}">客户较多，仅展示最近 1000 位</view>
+  </view>
+
+  <view wx:elif="{{loading}}" class="state">正在加载…</view>
+  <view wx:elif="{{error}}" class="state">
+    {{error}}
+    <view class="state-action" bindtap="load">重新加载</view>
+  </view>
+  <view wx:else class="state">
+    暂无符合条件的客户
+    <view class="state-hint">可以换一个关键词或筛选条件</view>
+  </view>
+</view>

@@ -90,16 +90,17 @@
 .price-row {
   display: flex;
   align-items: baseline;
+  flex-wrap: nowrap;
   gap: 16rpx;
 }
 
 .price-row .price {
+  flex: 0 0 auto;
   font-size: 58rpx;
+  white-space: nowrap;
 }
 
-.origin {
-  font-size: 26rpx;
-  color: var(--muted);
+.original-price {
   text-decoration: line-through;
 }
 
@@ -115,6 +116,12 @@
   margin-left: auto;
   font-size: 22rpx;
   color: var(--muted);
+}
+
+.discount-note {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: var(--accent);
 }
 
 .name {
@@ -247,7 +254,7 @@
 }
 
 .product-dock-cart {
-  flex: 0 0 240rpx;
+  flex: 1;
   height: 80rpx;
   border-radius: 40rpx;
   border: 1rpx solid var(--green);
@@ -258,20 +265,6 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-}
-
-.product-dock-buy {
-  flex: 1;
-  height: 80rpx;
-  border-radius: 40rpx;
-  background: linear-gradient(135deg, var(--accent), var(--accent-deep));
-  color: #ffffff;
-  font-size: 28rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  box-shadow: 0 10rpx 24rpx rgba(226, 87, 43, 0.22);
 }
 
 .product-dock-disabled {
@@ -288,7 +281,6 @@
 }
 
 .product-dock-cart[disabled],
-.product-dock-buy[disabled],
 .product-dock-disabled[disabled] {
   opacity: 0.55;
 }
