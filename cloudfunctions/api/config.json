@@ -3,5 +3,12 @@
     "openapi": [
       "wxacode.getUnlimited"
     ]
-  }
+  },
+  "triggers": [
+    {
+      "name": "keepWarm",
+      "type": "timer",
+      "config": "0 */5 * * * * *"
+    }
+  ]
 }

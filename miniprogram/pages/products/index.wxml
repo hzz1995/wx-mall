@@ -39,7 +39,9 @@
   </view>
 
   <view class="filter-row">
-    <view class="result-count">已加载 {{products.length}} 件</view>
+    <view class="result-count" wx:if="{{!loaded}}">正在加载…</view>
+    <view class="result-count" wx:elif="{{loading}}">更新中…</view>
+    <view class="result-count" wx:else>已加载 {{products.length}} 件</view>
   </view>
 
   <view wx:if="{{loading && !loaded}}" class="loading-wrap">

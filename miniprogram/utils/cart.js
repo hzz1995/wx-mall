@@ -1,6 +1,7 @@
 function syncCartBadge(count) {
   const total = Number(count) || 0
   wx.setStorageSync('mall_cart_count', total)
+  wx.setStorageSync('mall_cart_count_at', Date.now())
 
   try {
     const pages = getCurrentPages()
@@ -16,12 +17,19 @@ function syncCartBadge(count) {
   }
 }
 
-async function refreshCartBadge() {
+async function refreshCartBadge(maxAgeMs) {
   const { getToken, getUser } = require('./session')
   const user = getUser()
   if (!getToken() || (user && user.type !== 'KH')) {
     syncCartBadge(0)
     return 0
+  }
+  if (maxAgeMs) {
+    const count = Number(wx.getStorageSync('mall_cart_count')) || 0
+    const updatedAt = Number(wx.getStorageSync('mall_cart_count_at')) || 0
+    if (updatedAt && Date.now() - updatedAt < maxAgeMs) {
+      return count
+    }
   }
   try {
     const { call } = require('./api')

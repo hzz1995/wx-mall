@@ -203,34 +203,85 @@ async function getCatalog(user, event) {
   }
 }
 
-async function listProducts(user, event) {
-  const page = toInt(event.page, 1, 1, 100000)
-  const categoryId = String(event.categoryId || '').trim()
-  const keyword = String(event.keyword || '').trim().slice(0, 50)
-  const sort = ['sales', 'new'].includes(event.sort) ? event.sort : 'default'
+async function listCatalogCategories(user) {
+  const res = await db.collection('categories').where({ enabled: true }).limit(100).get()
+  let categoryDocs = res.data
+  const bound = getBoundCategoryIds(user)
+  if (bound.length) {
+    const allowed = new Set(bound)
+    categoryDocs = categoryDocs.filter(item => allowed.has(item._id))
+  }
+  return sortBySort(categoryDocs).map(item => ({
+    _id: item._id,
+    name: item.name,
+    sort: Number(item.sort) || 0
+  }))
+}
 
+async function getHome(user) {
+  const [settings, categories, pageData] = await Promise.all([
+    getSettings(),
+    listCatalogCategories(user),
+    fetchProductPage(user, { page: 1 })
+  ])
+  return {
+    settings: {
+      shopName: settings.shopName,
+      notice: settings.notice,
+      serviceWechat: settings.serviceWechat
+    },
+    categories,
+    products: pageData.list,
+    hasMore: pageData.hasMore,
+    page: pageData.page
+  }
+}
+
+async function listProducts(user, event) {
   let accessUser = user
   if (event.customerId) {
     accessUser = await getScopedCustomer(user, event.customerId)
   }
+  return fetchProductPage(accessUser, event)
+}
+
+function buildProductQuery(user, event) {
+  const categoryId = String(event.categoryId || '').trim()
+  const keyword = String(event.keyword || '').trim().slice(0, 50)
+  const sort = ['sales', 'new'].includes(event.sort) ? event.sort : 'default'
 
   const base = { status: 'ON' }
   if (keyword) base.name = db.RegExp({ regexp: escapeRegExp(keyword), options: 'i' })
-  const bound = getBoundCategoryIds(accessUser)
-  let where = base
+  const bound = getBoundCategoryIds(user)
   if (categoryId && categoryId !== 'all') {
     if (bound.length && !bound.includes(categoryId)) {
-      return { list: [], hasMore: false, page }
+      return { where: null, sort }
     }
-    where = _.or([
-      { ...base, categoryId },
-      { ...base, categoryIds: _.in([categoryId]) }
-    ])
-  } else if (bound.length) {
-    where = _.or([
-      { ...base, categoryId: _.in(bound) },
-      { ...base, categoryIds: _.in(bound) }
-    ])
+    return {
+      where: _.or([
+        { ...base, categoryId },
+        { ...base, categoryIds: _.in([categoryId]) }
+      ]),
+      sort
+    }
+  }
+  if (bound.length) {
+    return {
+      where: _.or([
+        { ...base, categoryId: _.in(bound) },
+        { ...base, categoryIds: _.in(bound) }
+      ]),
+      sort
+    }
+  }
+  return { where: base, sort }
+}
+
+async function fetchProductPage(user, event) {
+  const page = toInt(event.page, 1, 1, 100000)
+  const { where, sort } = buildProductQuery(user, event)
+  if (!where) {
+    return { list: [], hasMore: false, page }
   }
 
   let query = db.collection('products').where(where)
@@ -905,6 +956,8 @@ async function handleMini(event, openid) {
     switch (action) {
       case 'getCatalog':
         return await getCatalog(user, event)
+      case 'getHome':
+        return await getHome(user)
       case 'listProducts':
         return await listProducts(user, event)
       case 'getProduct':

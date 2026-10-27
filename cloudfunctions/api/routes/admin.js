@@ -19,6 +19,7 @@ const {
   getSalesMap,
   sanitizeUser
 } = require('../lib/users')
+const { buildOrderExport } = require('../lib/excel')
 const {
   getSettings,
   saveSettings,
@@ -41,7 +42,8 @@ const MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 const MAX_VIDEO_BYTES = 40 * 1024 * 1024
 const MAX_VIDEO_CHUNKS = 64
 const MAX_CHUNK_BYTES = 3 * 1024 * 1024
-const MAX_BOUND_PRODUCTS = 100
+const MAX_BOUND_CATEGORIES = 100
+const MAX_EXPORT_SELECTED = 100
 const AUDIT_ACTIONS = [
   'PRODUCT_CREATE',
   'PRODUCT_UPDATE',
@@ -68,17 +70,22 @@ function auditProductSnapshot(product) {
   return {
     name: product.name || '',
     categoryId: product.categoryId || '',
+    categoryIds: Array.isArray(product.categoryIds) && product.categoryIds.length
+      ? product.categoryIds.map(String)
+      : (product.categoryId ? [String(product.categoryId)] : []),
     price: Number(product.price) || 0,
     originalPrice: Number(product.originalPrice) || 0,
     images: Array.isArray(product.images) ? product.images : [],
     videos: Array.isArray(product.videos) ? product.videos : [],
     description: product.description || '',
     spec: product.spec || '',
+    validUntil: product.validUntil || '',
     productionDate: product.productionDate || '',
     origin: product.origin || '',
     sort: Number(product.sort) || 0,
     status: product.status || 'ON',
     code: product.code || '',
+    initialSales: Number(product.initialSales) || 0,
     sales: Number(product.sales) || 0
   }
 }
@@ -160,6 +167,14 @@ function parseSort(value) {
   return sort
 }
 
+function parseInitialSales(value) {
+  const sales = Number(value)
+  if (!Number.isInteger(sales) || sales < 0 || sales > 99999999) {
+    throw new HttpError(400, '初始化已售数量需为 0-99999999 的整数')
+  }
+  return sales
+}
+
 function normalizeMedia(value, label, maxCount) {
   if (!Array.isArray(value)) throw new HttpError(400, `${label}格式不正确`)
   if (value.length > maxCount) throw new HttpError(400, `最多上传 ${maxCount} 个${label}`)
@@ -184,15 +199,15 @@ async function validateSalesId(salesId, selfId, required) {
   return id
 }
 
-async function validateBoundProductIds(value) {
+async function validateBoundCategoryIds(value) {
   if (value == null) return []
-  if (!Array.isArray(value)) throw new HttpError(400, '可售商品格式不正确')
+  if (!Array.isArray(value)) throw new HttpError(400, '可售分类格式不正确')
   const ids = Array.from(new Set(value.map(item => String(item || '').trim()).filter(Boolean)))
-  if (ids.length > MAX_BOUND_PRODUCTS) {
-    throw new HttpError(400, `每个客户最多绑定 ${MAX_BOUND_PRODUCTS} 件商品`)
+  if (ids.length > MAX_BOUND_CATEGORIES) {
+    throw new HttpError(400, `每个客户最多绑定 ${MAX_BOUND_CATEGORIES} 个分类`)
   }
   if (!ids.length) return []
-  const res = await db.collection('products').where({ _id: _.in(ids) }).limit(MAX_BOUND_PRODUCTS).get()
+  const res = await db.collection('categories').where({ _id: _.in(ids) }).limit(MAX_BOUND_CATEGORIES).get()
   const found = new Set(res.data.map(item => String(item._id)))
   return ids.filter(id => found.has(id))
 }
@@ -202,18 +217,18 @@ async function validateProductPayload(body, partial) {
   if (!partial || body.name !== undefined) {
     data.name = requireText(body.name, '商品名称', 50)
   }
-  if (!partial || body.categoryId !== undefined) {
-    const categoryId = String(body.categoryId || '').trim()
-    if (!categoryId) throw new HttpError(400, '请选择商品分类')
-    let category = null
-    try {
-      const res = await db.collection('categories').doc(categoryId).get()
-      category = res.data
-    } catch (err) {
-      category = null
-    }
-    if (!category) throw new HttpError(400, '所选分类不存在')
-    data.categoryId = categoryId
+  if (!partial || body.categoryIds !== undefined || body.categoryId !== undefined) {
+    const raw = body.categoryIds !== undefined
+      ? body.categoryIds
+      : (body.categoryId ? [body.categoryId] : [])
+    if (!Array.isArray(raw)) throw new HttpError(400, '商品分类格式不正确')
+    const categoryIds = Array.from(new Set(raw.map(item => String(item || '').trim()).filter(Boolean)))
+    if (!categoryIds.length) throw new HttpError(400, '请选择商品分类')
+    if (categoryIds.length > 20) throw new HttpError(400, '一个商品最多选择 20 个分类')
+    const res = await db.collection('categories').where({ _id: _.in(categoryIds) }).limit(categoryIds.length).get()
+    if (res.data.length !== categoryIds.length) throw new HttpError(400, '部分所选分类不存在')
+    data.categoryIds = categoryIds
+    data.categoryId = categoryIds[0]
   }
   if (!partial || body.price !== undefined) {
     data.price = parsePrice(body.price, '售价')
@@ -233,6 +248,9 @@ async function validateProductPayload(body, partial) {
   if (!partial || body.spec !== undefined) {
     data.spec = cleanText(body.spec, 50)
   }
+  if (!partial || body.validUntil !== undefined) {
+    data.validUntil = cleanText(body.validUntil, 20)
+  }
   if (!partial || body.productionDate !== undefined) {
     data.productionDate = cleanText(body.productionDate, 20)
   }
@@ -246,6 +264,9 @@ async function validateProductPayload(body, partial) {
   }
   if (!partial || body.sort !== undefined) {
     data.sort = parseSort(body.sort == null ? 0 : body.sort)
+  }
+  if (!partial || body.initialSales !== undefined) {
+    data.initialSales = parseInitialSales(body.initialSales == null ? 0 : body.initialSales)
   }
   return data
 }
@@ -271,12 +292,12 @@ async function createUserRecord(body) {
   const shopName = cleanText(body.shopName, 50)
   const address = cleanText(body.address, 200)
   let salesId = ''
-  let productIds = []
+  let categoryIds = []
   if (type === 'KH') {
     if (!shopName) throw new HttpError(400, '客户类型必须填写门店名称')
     if (!address) throw new HttpError(400, '客户类型必须填写收货地址')
     salesId = await validateSalesId(body.salesId, null, true)
-    productIds = await validateBoundProductIds(body.productIds)
+    categoryIds = await validateBoundCategoryIds(body.categoryIds)
   }
 
   const now = new Date()
@@ -287,7 +308,7 @@ async function createUserRecord(body) {
     shopName,
     address,
     salesId,
-    productIds,
+    categoryIds,
     enabled: body.enabled !== false,
     passwordSalt,
     passwordHash,
@@ -390,6 +411,28 @@ async function createUser(body) {
   }
 }
 
+async function createCustomer(staff, body) {
+  if (staff.type !== 'GLY' && staff.type !== 'XS') {
+    throw new HttpError(403, '无权创建客户')
+  }
+  const salesId = staff.type === 'XS' ? String(staff._id) : body.salesId
+  const user = await createUserRecord({
+    phone: body.phone,
+    name: body.name,
+    password: body.password,
+    type: 'KH',
+    shopName: body.shopName,
+    address: body.address,
+    salesId,
+    categoryIds: staff.type === 'GLY' ? body.categoryIds : [],
+    enabled: body.enabled
+  })
+  const salesMap = await getSalesMap(user.salesId ? [user.salesId] : [])
+  return {
+    user: { ...sanitizeUser(user), salesName: (salesMap[user.salesId] || {}).name || '' }
+  }
+}
+
 async function updateUser(id, body, admin) {
   const current = await getUserById(id)
   if (!current) throw new HttpError(404, '用户不存在')
@@ -417,10 +460,10 @@ async function updateUser(id, body, admin) {
     if (!nextShopName) throw new HttpError(400, '客户类型必须填写门店名称')
     if (!nextAddress) throw new HttpError(400, '客户类型必须填写收货地址')
   }
-  const nextProductIds = nextType === 'KH'
-    ? (body.productIds !== undefined
-      ? await validateBoundProductIds(body.productIds)
-      : (Array.isArray(current.productIds) ? current.productIds.map(String) : []))
+  const nextCategoryIds = nextType === 'KH'
+    ? (body.categoryIds !== undefined
+      ? await validateBoundCategoryIds(body.categoryIds)
+      : (Array.isArray(current.categoryIds) ? current.categoryIds.map(String) : []))
     : []
 
   const data = {
@@ -430,7 +473,7 @@ async function updateUser(id, body, admin) {
     address: nextAddress,
     type: nextType,
     salesId,
-    productIds: nextProductIds,
+    categoryIds: nextCategoryIds,
     enabled: nextEnabled,
     updatedAt: new Date()
   }
@@ -453,6 +496,23 @@ async function resetUserPassword(id, body) {
   return { ok: true }
 }
 
+async function changeStaffPassword(staff, body) {
+  if (!verifyPassword(body.oldPassword, staff.passwordSalt, staff.passwordHash)) {
+    throw new HttpError(400, '原密码不正确')
+  }
+  const password = validateNewPassword(body.newPassword)
+  if (password === String(body.oldPassword || '')) {
+    throw new HttpError(400, '新密码不能与原密码相同')
+  }
+  const { passwordSalt, passwordHash } = hashPassword(password)
+  const updatedAt = new Date()
+  await db.collection('users').doc(String(staff._id)).update({
+    data: { passwordSalt, passwordHash, updatedAt }
+  })
+  const token = issueToken({ ...staff, passwordSalt, passwordHash, updatedAt }, ADMIN_TTL_MS)
+  return { ok: true, token, expiresIn: ADMIN_TTL_MS / 1000 }
+}
+
 async function withOrderImageUrls(orders) {
   const fileList = []
   orders.forEach(order => {
@@ -470,7 +530,7 @@ async function withOrderImageUrls(orders) {
   }))
 }
 
-async function listOrders(query, staff) {
+function buildOrderWhere(query, staff) {
   const status = String(query.status || '').trim()
   if (status && !ORDER_STATUS.includes(status)) {
     throw new HttpError(400, '订单状态不合法')
@@ -478,18 +538,21 @@ async function listOrders(query, staff) {
   const salesId = staff.type === 'XS' ? String(staff._id) : String(query.salesId || '').trim()
   const keyword = String(query.keyword || '').trim()
 
-  let where = {}
   if (keyword) {
     const reg = db.RegExp({ regexp: escapeRegExp(keyword), options: 'i' })
     const branches = [{ customerName: reg }, { phone: reg }, { orderNo: reg }, { shopName: reg }]
     if (status) branches.forEach(branch => { branch.status = status })
     if (salesId) branches.forEach(branch => { branch.salesId = salesId })
-    where = _.or(branches)
-  } else {
-    if (status) where.status = status
-    if (salesId) where.salesId = salesId
+    return _.or(branches)
   }
+  const where = {}
+  if (status) where.status = status
+  if (salesId) where.salesId = salesId
+  return where
+}
 
+async function listOrders(query, staff) {
+  const where = buildOrderWhere(query, staff)
   const page = toInt(query.page, 1, 1, 100000)
   const pageSize = toInt(query.pageSize, 10, 1, 100)
   const [countRes, listRes] = await Promise.all([
@@ -502,6 +565,32 @@ async function listOrders(query, staff) {
     total: countRes.total,
     page,
     pageSize
+  }
+}
+
+async function exportOrders(query, staff) {
+  const ids = Array.from(new Set(
+    String(query.ids || '')
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean)
+  ))
+  if (!ids.length) throw new HttpError(400, '请选择要导出的订单')
+  if (ids.length > MAX_EXPORT_SELECTED) {
+    throw new HttpError(400, `一次最多导出 ${MAX_EXPORT_SELECTED} 单`)
+  }
+
+  const where = { _id: _.in(ids) }
+  if (staff.type === 'XS') where.salesId = String(staff._id)
+  const res = await db.collection('orders').where(where).limit(ids.length).get()
+  if (!res.data.length) throw new HttpError(400, '没有可导出的订单')
+  const orders = res.data
+    .slice()
+    .sort((a, b) => toTimestamp(b.createdAt) - toTimestamp(a.createdAt))
+
+  return {
+    ...buildOrderExport(orders),
+    orderCount: orders.length
   }
 }
 
@@ -581,8 +670,16 @@ async function listProducts(query) {
   if (uniqueIds.length) {
     where._id = _.in(uniqueIds)
   } else {
-    if (keyword) where.name = db.RegExp({ regexp: escapeRegExp(keyword), options: 'i' })
-    if (categoryId) where.categoryId = categoryId
+    const base = {}
+    if (keyword) base.name = db.RegExp({ regexp: escapeRegExp(keyword), options: 'i' })
+    if (categoryId) {
+      where = _.or([
+        { ...base, categoryId },
+        { ...base, categoryIds: _.in([categoryId]) }
+      ])
+    } else {
+      where = base
+    }
   }
 
   let listQuery = db.collection('products').where(where)
@@ -612,7 +709,7 @@ async function createProduct(body, staff) {
     ...data,
     videos: data.videos || [],
     code: await generateUniqueProductCode(),
-    sales: 0,
+    sales: Number(data.initialSales) || 0,
     createdAt: now,
     updatedAt: now
   }
@@ -632,9 +729,16 @@ async function updateProduct(id, body, staff) {
   if (!existing) throw new HttpError(404, '商品不存在')
   const before = auditProductSnapshot(existing)
   const data = await validateProductPayload(body, true)
-  data.updatedAt = new Date()
-  await db.collection('products').doc(String(id)).update({ data })
-  const mergedDoc = { ...existing, ...data }
+  const oldInitialSales = Number(existing.initialSales) || 0
+  const salesDelta = data.initialSales !== undefined ? data.initialSales - oldInitialSales : 0
+  const now = new Date()
+  const updateData = { ...data, updatedAt: now }
+  if (salesDelta !== 0) updateData.sales = _.inc(salesDelta)
+  await db.collection('products').doc(String(id)).update({ data: updateData })
+  const mergedDoc = { ...existing, ...data, updatedAt: now }
+  if (salesDelta !== 0) {
+    mergedDoc.sales = Math.max(0, (Number(existing.sales) || 0) + salesDelta)
+  }
   const merged = serializeProduct(mergedDoc)
   const [withUrl] = await withTempUrls([merged])
   const auditWarning = await writeAuditLog({
@@ -656,6 +760,76 @@ async function deleteProduct(id, staff) {
     after: null
   })
   return auditWarning ? { ok: true, auditWarning } : { ok: true }
+}
+
+function normalizeBatchValue(field, value) {
+  if (field === 'status') {
+    const status = String(value || '')
+    if (!['ON', 'OFF'].includes(status)) throw new HttpError(400, '商品状态不合法')
+    return status
+  }
+  if (field === 'price') return parsePrice(value, '售价')
+  if (field === 'originalPrice') return parsePrice(value, '划线价')
+  if (field === 'validUntil' || field === 'productionDate') return cleanText(value, 20)
+  if (field === 'origin') return cleanText(value, 50)
+  if (field === 'spec') return cleanText(value, 50)
+  if (field === 'sort') return parseSort(value)
+  throw new HttpError(400, '不支持批量修改该属性')
+}
+
+async function batchUpdateProducts(body, staff) {
+  const field = String(body.field || '').trim()
+  let updates = []
+  if (Array.isArray(body.updates)) {
+    updates = body.updates
+      .map(item => ({
+        id: String((item && (item.id || item._id)) || '').trim(),
+        value: item && item.value
+      }))
+      .filter(item => item.id)
+  } else {
+    const ids = Array.isArray(body.ids) ? body.ids : []
+    updates = ids
+      .map(id => ({ id: String(id || '').trim(), value: body.value }))
+      .filter(item => item.id)
+  }
+
+  const updateMap = new Map()
+  updates.forEach(item => updateMap.set(item.id, item.value))
+  if (!updateMap.size) throw new HttpError(400, '请选择要修改的商品')
+  if (updateMap.size > 100) throw new HttpError(400, '一次最多批量修改 100 件商品')
+
+  const normalized = Array.from(updateMap.entries()).map(([id, value]) => ({
+    id,
+    value: normalizeBatchValue(field, value)
+  }))
+  const ids = normalized.map(item => item.id)
+
+  const res = await db.collection('products').where({ _id: _.in(ids) }).limit(ids.length).get()
+  if (!res.data.length) throw new HttpError(404, '所选商品不存在')
+  const productMap = new Map(res.data.map(product => [String(product._id), product]))
+  const now = new Date()
+  let auditWarning = ''
+  let updated = 0
+
+  await Promise.all(normalized.map(async item => {
+    const product = productMap.get(item.id)
+    if (!product) return
+    const before = auditProductSnapshot(product)
+    await db.collection('products').doc(String(product._id)).update({
+      data: { [field]: item.value, updatedAt: now }
+    })
+    updated += 1
+    const afterProduct = { ...product, [field]: item.value, updatedAt: now }
+    const warning = await writeAuditLog({
+      ...auditBase(staff, 'PRODUCT_UPDATE', 'product', product._id, product.name),
+      before,
+      after: auditProductSnapshot(afterProduct)
+    })
+    if (warning && !auditWarning) auditWarning = warning
+  }))
+
+  return auditWarning ? { updated, auditWarning } : { updated }
 }
 
 async function listCategories() {
@@ -725,7 +899,10 @@ async function deleteCategory(id, staff) {
     existing = null
   }
   if (!existing) throw new HttpError(404, '分类不存在')
-  const productCount = await db.collection('products').where({ categoryId: String(id) }).count()
+  const productCount = await db.collection('products').where(_.or([
+    { categoryId: String(id) },
+    { categoryIds: _.in([String(id)]) }
+  ])).count()
   if (productCount.total > 0) {
     throw new HttpError(400, '该分类下还有商品，请先移动或删除商品')
   }
@@ -894,10 +1071,14 @@ function resolveReportRange(query) {
 
 async function getReports(query) {
   const range = resolveReportRange(query)
+  const salesId = String((query && query.salesId) || '').trim()
+  const shopName = String((query && query.shopName) || '').trim().slice(0, 50)
   const orderWhere = {
     status: 'DONE',
     createdAt: _.gte(new Date(range.start)).and(_.lte(new Date(range.end)))
   }
+  if (salesId) orderWhere.salesId = salesId
+  if (shopName) orderWhere.shopName = db.RegExp({ regexp: escapeRegExp(shopName), options: 'i' })
 
   const countRes = await db.collection('orders').where(orderWhere).count()
   const maxFetch = 3000
@@ -1300,9 +1481,13 @@ async function route({ method, path, query, headers, body }) {
   if (method === 'GET' && path === '/me') {
     return { user: sanitizeUser(staff) }
   }
+  if (method === 'POST' && path === '/me/password') {
+    return changeStaffPassword(staff, body)
+  }
 
   if (resource === 'orders') {
     if (!canViewSalesData) throw new HttpError(403, '无权查看订单')
+    if (method === 'GET' && id === 'export') return exportOrders(query, staff)
     if (method === 'GET' && !id) return listOrders(query, staff)
     if (method === 'GET' && id) return getOrder(id, staff)
     if (method === 'PATCH' && id) {
@@ -1310,9 +1495,10 @@ async function route({ method, path, query, headers, body }) {
       return cancelOrder(id)
     }
   }
-  if (resource === 'customers' && method === 'GET') {
-    if (!canViewSalesData) throw new HttpError(403, '无权查看客户')
-    return listCustomers(staff, query)
+  if (resource === 'customers') {
+    if (!canViewSalesData) throw new HttpError(403, '无权操作客户')
+    if (method === 'GET' && !id) return listCustomers(staff, query)
+    if (method === 'POST' && !id) return createCustomer(staff, body)
   }
   if (resource === 'carts' && method === 'GET') {
     if (!canViewSalesData) throw new HttpError(403, '无权查看购物车')
@@ -1322,6 +1508,7 @@ async function route({ method, path, query, headers, body }) {
   if (resource === 'products') {
     if (!isAdmin && !isOps) throw new HttpError(403, '无权操作商品')
     if (method === 'GET' && !id) return listProducts(query)
+    if (method === 'POST' && id === 'batch') return batchUpdateProducts(body, staff)
     if (method === 'POST' && !id) return createProduct(body, staff)
     if (method === 'PUT' && id) return updateProduct(id, body, staff)
     if (method === 'DELETE' && id) return deleteProduct(id, staff)

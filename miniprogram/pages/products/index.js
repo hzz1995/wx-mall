@@ -37,6 +37,8 @@ Page({
     if (!requireLogin('/pages/products/index')) return
     const user = getUser()
     this.setData({ canShop: Boolean(user && user.type === 'KH') })
+    const cached = this.readHomeCache()
+    if (cached) this.applyHome(cached)
     this.load()
   },
 
@@ -63,6 +65,10 @@ Page({
   },
 
   onPullDownRefresh() {
+    if (this.data.activeCategory !== 'all' || this.data.keyword.trim()) {
+      this.reloadProducts().finally(() => wx.stopPullDownRefresh())
+      return
+    }
     this.load(true)
   },
 
@@ -105,29 +111,66 @@ Page({
     }
   },
 
+  homeCacheKey() {
+    const user = getUser() || {}
+    return user._id ? `mall_home_${user._id}` : ''
+  },
+
+  readHomeCache() {
+    const key = this.homeCacheKey()
+    if (!key) return null
+    try {
+      const cache = wx.getStorageSync(key)
+      if (!cache || !Array.isArray(cache.products) || !Array.isArray(cache.categories)) return null
+      return cache
+    } catch (err) {
+      return null
+    }
+  },
+
+  writeHomeCache(data) {
+    const key = this.homeCacheKey()
+    if (!key) return
+    try {
+      wx.setStorageSync(key, {
+        ts: Date.now(),
+        settings: data.settings || {},
+        categories: data.categories || [],
+        products: data.products || [],
+        page: data.page || 1,
+        hasMore: Boolean(data.hasMore)
+      })
+    } catch (err) {
+      console.warn('cache home failed', err)
+    }
+  },
+
+  applyHome(data) {
+    const categories = (data.categories || []).map(item => ({
+      ...item,
+      initial: (item.name || '·').slice(0, 1)
+    }))
+    this.setData({
+      settings: data.settings || {},
+      categories,
+      products: this.decorate(data.products),
+      page: data.page || 1,
+      hasMore: Boolean(data.hasMore),
+      loading: false,
+      loaded: true,
+      error: ''
+    })
+  },
+
   async load(fromPullDown) {
     this.requestSeq = (this.requestSeq || 0) + 1
     const seq = this.requestSeq
     this.setData({ loading: true, loadingMore: false, error: '', page: 1, hasMore: true })
     try {
-      const [meta, firstPage] = await Promise.all([
-        api.call('getCatalog', { includeProducts: false }),
-        api.call('listProducts', this.buildQuery(1))
-      ])
+      const data = await api.call('getHome')
       if (seq !== this.requestSeq) return
-      const categories = (meta.categories || []).map(item => ({
-        ...item,
-        initial: (item.name || '·').slice(0, 1)
-      }))
-      this.setData({
-        settings: meta.settings || {},
-        categories,
-        products: this.decorate(firstPage.list),
-        page: 1,
-        hasMore: Boolean(firstPage.hasMore),
-        loading: false,
-        loaded: true
-      })
+      this.applyHome(data)
+      this.writeHomeCache(data)
     } catch (err) {
       if (seq !== this.requestSeq) return
       this.setData({ loading: false, error: err.message || '加载失败' })
@@ -186,7 +229,7 @@ Page({
       syncCartBadge(0)
       return
     }
-    const count = await refreshCartBadge()
+    const count = await refreshCartBadge(60 * 1000)
     this.setData({ cartCount: count })
   },
 

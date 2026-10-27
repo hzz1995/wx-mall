@@ -47,6 +47,10 @@
       </view>
     </view>
 
+    <view class="intent-notice">
+      <text class="intent-notice-title">⚠️ 提示：</text>本表单仅用于客户意向需求登记、备货信息收集，不属于线上交易，不收取任何款项，不构成买卖合同，最终供货以双方线下确认为准。
+    </view>
+
     <view class="section-title">收货信息</view>
     <view class="card form-card">
       <view class="field">
