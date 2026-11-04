@@ -26,6 +26,7 @@ function formatTime(timestamp) {
 
 const STATUS_TEXT = {
   DONE: '已完成',
+  CLOSED: '已关闭',
   CANCELLED: '已取消'
 }
 

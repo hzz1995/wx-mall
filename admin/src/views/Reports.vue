@@ -3,7 +3,7 @@
     <div class="page-head">
       <div>
         <h2>数据报表</h2>
-        <p class="sub">{{ rangeText }} · 共 {{ summary.orderCount || 0 }} 条已完成订单，取消订单不计入</p>
+        <p class="sub">{{ rangeText }} · 共 {{ summary.orderCount || 0 }} 条有效订单，取消及演示订单不计入</p>
       </div>
       <el-button :loading="loading" @click="load">刷新</el-button>
     </div>
@@ -52,7 +52,7 @@
       type="warning"
       :closable="false"
       show-icon
-      title="订单量较大，仅统计最近 3000 条已完成订单，排行可能不完整"
+      title="订单量较大，仅统计最近 3000 条有效订单，排行可能不完整"
       style="margin-bottom: 16px"
     />
 
@@ -146,7 +146,7 @@
       <div class="panel wide">
         <div class="panel-head">
           <h3>销售业绩排行</h3>
-          <span>按已完成订单金额 · 前10</span>
+          <span>按有效订单金额 · 前10</span>
         </div>
         <el-table v-loading="loading" :data="salesRanking" size="small" empty-text="暂无销售账号">
           <el-table-column type="index" label="#" width="46" />
@@ -222,7 +222,7 @@ const rangeText = computed(() => {
 const rangeHint = computed(() => rangeType.value === 'custom' ? '，最多跨度一年' : '')
 
 const stats = computed(() => [
-  { label: '总订单', value: summary.value.orderCount || 0, sub: '已完成订单' },
+  { label: '总订单', value: summary.value.orderCount || 0, sub: '有效订单' },
   { label: '总金额', value: `¥${money(summary.value.totalAmount || 0)}`, sub: '订单金额合计' },
   { label: '商品件数', value: summary.value.totalItems || 0, sub: '累计购买数量' },
   { label: '下单客户', value: summary.value.customerCount || 0, sub: '有订单的客户' },

@@ -59,8 +59,11 @@ function serializeOrder(order) {
     })),
     orderSource: order.orderSource || 'SELF',
     assistedByName: order.assistedByName || '',
+    isDemo: order.isDemo === true,
     createdAt: toTimestamp(order.createdAt),
-    updatedAt: toTimestamp(order.updatedAt)
+    updatedAt: toTimestamp(order.updatedAt),
+    closedAt: toTimestamp(order.closedAt),
+    cancelledAt: toTimestamp(order.cancelledAt)
   }
 }
 

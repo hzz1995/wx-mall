@@ -20,7 +20,7 @@ function syncCartBadge(count) {
 async function refreshCartBadge(maxAgeMs) {
   const { getToken, getUser } = require('./session')
   const user = getUser()
-  if (!getToken() || (user && user.type !== 'KH')) {
+  if (!getToken() || (user && !['KH', 'XS'].includes(user.type))) {
     syncCartBadge(0)
     return 0
   }

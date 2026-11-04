@@ -112,6 +112,11 @@ button::after {
   background: #f0efeb;
 }
 
+.tag-closed {
+  color: #7d5a3c;
+  background: #f7efe2;
+}
+
 .state {
   padding: 160rpx 48rpx;
   text-align: center;

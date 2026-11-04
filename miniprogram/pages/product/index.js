@@ -30,7 +30,7 @@ Page({
     if (!requireLogin(redirect)) return
 
     const user = getUser()
-    this.setData({ canShop: Boolean(user && user.type === 'KH') })
+    this.setData({ canShop: Boolean(user && ['KH', 'XS'].includes(user.type)) })
     this.load(this.pageOptions)
   },
 
@@ -112,7 +112,7 @@ Page({
     const { product } = this.data
     if (!product || !product.onSale || this.data.adding) return
     if (!this.data.canShop) {
-      wx.showToast({ title: '只有客户账号可以加入购物车', icon: 'none' })
+      wx.showToast({ title: '只有客户和销售账号可以加入购物车', icon: 'none' })
       return
     }
     this.setData({

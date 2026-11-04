@@ -18,7 +18,7 @@
     <view class="role-state">
       <view class="role-mark">店</view>
       <view class="role-title">当前账号不支持购物车</view>
-      <view class="role-sub">销售或管理员账号仅可浏览商品，请使用客户账号登录后下单</view>
+      <view class="role-sub">运营或管理员账号仅可浏览商品，请使用客户或销售账号登录后下单</view>
     </view>
   </block>
 
@@ -71,9 +71,6 @@
     </view>
 
     <view class="dock">
-      <view class="dock-hint" wx:if="{{selectedCount > 0 && !reachMin}}">
-        满 ¥199 起订，还差 ¥{{shortfallText}}
-      </view>
       <view class="dock-row">
         <view class="select-all" bindtap="toggleAll">
           <view class="check {{allChecked ? 'checked' : ''}}">

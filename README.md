@@ -12,12 +12,14 @@
 - 商品详情：多图预览、视频播放、规格型号/生产日期/产地、加入购物车；商品列表和详情展示售价、划线原价和优惠金额
 - 加购弹窗：可直接输入或加减数量，一次加入多件
 - 商品详情底部提供购物车快捷入口和数量角标
-- 购物车：勾选、改数量、移除、全选、批量结算；已选商品合计满 `¥199` 才能创建订单
+- 购物车：勾选、改数量、移除、全选、批量结算
 - 客户可售范围：后台可为客户绑定分类；未绑定则看到全部分类商品，绑定后仅看到这些分类下的商品
-- 下单：多商品订单、收货地址、备注，无需在线支付；仅客户类型 `KH` 可加购和下单，购物车订单最低 `¥199`
-- 我的：个人资料、修改密码；`KH` 显示“我的订单”，销售和管理员显示“客户订单”
-- 我的订单：服务端分页，每页 10 条，滚动加载；支持“再来一单”，可修改数量后重新提交
+- 下单：多商品订单、收货地址、备注，无需在线支付；客户 `KH` 和销售 `XS` 可加购和下单
+- 我的：个人资料、修改密码；`KH` 显示“我的订单”，销售显示“我的客户 / 我的订单 / 客户订单”，管理员显示“客户订单”
+- 我的订单：服务端分页，每页 10 条，滚动加载；客户可取消状态为“已完成”的订单，取消后回滚商品销量；支持“再来一单”，可修改数量后重新提交
 - 客户订单：销售查看自己客户的订单，管理员查看全部订单；支持客户下拉筛选、今天/昨天/最近一周和月份选择（最近 12 个月）；管理员可按销售筛选并显示所属销售；支持勾选订单后导出 Excel
+- 订单状态：`DONE` 已完成（默认，客户可取消）、`CLOSED` 已关闭（管理员关闭，订单结束，不再允许取消）、`CANCELLED` 已取消（回滚销量）
+- 销售演示：销售账号可正常加购、下单；演示订单标记 `isDemo`，不计入商品销量、数据报表、客户统计和销售业绩，销售可在“我的订单”中查看
 - 我的客户（销售）：客户搜索、本月已下单/未下单筛选、客户数/本月交易额/本月下单次数统计，客户卡片显示当月交易额、当月下单数、较上月变化，并提供“帮下单”入口
 - 帮下单：销售可为自己的客户加入购物车或直接创建订单，商品范围按该客户的分类绑定校验；订单记录来源为“客户自建”或“销售帮下单”
 - 小程序码：可打开全部商品页或指定商品
@@ -30,7 +32,7 @@
   - 客户类型必须填写门店名称、收货地址，并指定负责销售
   - 可为客户绑定可售分类；不绑定表示可查看全部分类商品
   - 支持停用账号、修改密码（自定义新密码）、重置密码（默认重置为 `123456`）
-- 订单管理：按状态、销售、关键词筛选，列表显示负责销售和订单来源，查看详情、取消订单（回滚销量）；支持勾选订单后导出 Excel
+- 订单管理：按状态（已完成/已关闭/已取消）、订单类型（正式/演示/全部，默认正式）、销售、关键词筛选，列表显示负责销售和订单来源；管理员可关闭订单（订单结束、保留销量）或取消订单（回滚销量），支持勾选订单后导出 Excel
 - 购物车管理：按客户、销售、关键词查看购物车明细、数量和金额（销售仅自己客户）
 - 商品管理：多图 + 视频、规格型号、有效期至、生产日期、产地、初始化已售数量、上下架、多分类、排序、删除；支持服务端分页、搜索和分类筛选
 - 批量操作：勾选商品后可批量上架、批量下架；批量修改支持选择属性（状态/售价/原价/有效期至/生产日期/产地/规格型号/排序），在列表中逐个商品填写不同值后保存，操作写入日志
@@ -244,17 +246,19 @@ npm run build
 
 | 类型 | 标识 | 小程序 | 管理后台 |
 |---|---|---|---|
-| 客户 | `KH` | 浏览、购物车、下单、查自己的订单 | 无 |
-| 销售 | `XS` | 可浏览，查看自己客户的订单，不能加购/下单 | 可登录；查看自己客户的订单、客户汇总、购物车；可在客户菜单新建自己的客户 |
+| 客户 | `KH` | 浏览、购物车、下单、查自己的订单、取消已完成订单 | 无 |
+| 销售 | `XS` | 可浏览、加购、下单（演示订单不计统计），查看我的订单和自己客户的订单 | 可登录；查看自己客户的订单、客户汇总、购物车；可在客户菜单新建自己的客户 |
 | 运营 | `YY` | 可浏览，不能加购/下单 | 可登录；商品新增、编辑、删除和分类管理，操作写入日志 |
-| 管理员 | `GLY` | 可浏览，查看全部客户订单，不能加购/下单 | 全部管理功能 |
+| 管理员 | `GLY` | 可浏览，查看全部客户订单，不能加购/下单 | 全部管理功能，可关闭或取消订单 |
 
 - 密码使用 `scrypt` 加盐哈希存储，不保存明文。
 - 小程序令牌有效期 30 天，管理后台令牌有效期 12 小时。
 - 每个请求都会回查用户是否被停用；停用后旧令牌立即失效。
 - 客户下单时会把 `userId`、姓名、手机号、店铺名称、地址、负责销售快照写入订单，方便后续追溯。
 - 客户类型创建/编辑时必须填写门店名称、收货地址，并选择一个销售账号作为负责销售。
-- 只有客户类型 `KH` 可以加入购物车、下单、查看“我的订单”；销售可以查看自己客户的订单，管理员可以查看全部客户订单，运营只能浏览商品。
+- 客户和销售可以加入购物车、下单；客户可取消自己状态为“已完成”的订单，管理员可关闭或取消订单；销售演示订单不计入商品销量、报表和客户统计，管理员只可浏览、不参与购物。
+- 订单状态：`DONE` 已完成（默认）、`CLOSED` 已关闭（管理员结束订单，保留销量，客户不能取消）、`CANCELLED` 已取消（回滚销量）；关闭和取消均以快照记录时间。
+- 演示订单（`isDemo: true`）不会增加商品销量，取消时也不回滚；报表、客户汇总、销售业绩和“我的客户”统计均会排除演示订单。
 - 管理员重置密码默认为 `123456`，用户登录小程序后可在“我的 → 修改密码”中修改。
 - 小程序进入前强制登录；`getCatalog`、`getProduct` 云函数也要求有效登录令牌。
 - 首页暂未启用，小程序启动页和首页码都指向“全部商品”页；首页文件保留，后续可恢复。
@@ -444,19 +448,22 @@ node scripts/hash-password.js 你的密码
   "salesName": "李销售",
   "remark": "周末发货",
   "source": "cart",
+  "orderSource": "SELF",
+  "isDemo": false,
   "status": "DONE",
   "createdAt": "...",
   "updatedAt": "..."
 }
 ```
 
-下单即 `DONE`，不涉及支付与履约流转；后台取消后变为 `CANCELLED` 并回滚销量。
+下单即 `DONE`（已完成）。管理员可将 `DONE` 订单关闭为 `CLOSED`（订单结束、保留销量、客户不能再取消）；客户可将自己的 `DONE` 订单取消为 `CANCELLED` 并回滚销量；管理员取消也按 `CANCELLED` 处理并回滚销量。已关闭和已取消均为终态。
 
 订单来源字段：
 
 - `orderSource: "SELF"`：客户自己下单。
 - `orderSource: "ASSIST"`：销售帮下单，同时记录 `assistedById`、`assistedByName`。
-- 旧订单未存该字段时按“客户自建”展示。
+- `isDemo: true`：销售账号演示下单，不增加商品销量，不计入报表、客户统计、销售业绩和“我的客户”统计；取消时也不回滚销量。
+- 旧订单未存 `orderSource` 时按“客户自建”展示，未存 `isDemo` 时按正式订单处理。
 
 ### settings（文档 ID 固定为 `shop`）
 
@@ -516,10 +523,10 @@ node scripts/hash-password.js 你的密码
 | PUT | `/users/:id` | 修改用户/分配销售/停用/绑定可售分类（GLY） |
 | POST | `/users/:id/password` | 修改/重置用户密码（GLY；传 `password` 则使用指定密码，未传默认 `123456`） |
 | POST | `/me/password` | 修改当前登录账号密码（GLY / XS / YY；需原密码，返回新 token） |
-| GET | `/orders?status=&salesId=&keyword=&page=&pageSize=` | 订单列表（XS 自动按自己过滤） |
+| GET | `/orders?status=&orderType=&salesId=&keyword=&page=&pageSize=` | 订单列表（XS 自动按自己过滤；`orderType` 取 `normal`/`demo`/`all`，默认 `normal`，PC 端默认不展示销售演示订单） |
 | GET | `/orders/export?ids=` | 按勾选订单 ID 导出 Excel（XS 自动校验自己的订单，最多 100 单） |
 | GET | `/orders/:id` | 订单详情（XS 只能看自己的订单） |
-| PATCH | `/orders/:id` | 取消订单（GLY） |
+| PATCH | `/orders/:id` | 修改订单状态（GLY；body `{"status":"CLOSED"}` 关闭订单、`"CANCELLED"` 取消并回滚销量） |
 | GET | `/carts?keyword=&salesId=&page=&pageSize=` | 客户购物车列表（XS 自动过滤，GLY 可按销售筛选） |
 | GET | `/products?page=&pageSize=&keyword=&categoryId=&ids=&simple=` | 商品分页列表（GLY / YY；`ids` 用于批量回显，最多 100 个；`simple=1` 跳过临时地址生成，供选择器使用） |
 | POST | `/products` | 新增商品（GLY） |
@@ -541,10 +548,12 @@ node scripts/hash-password.js 你的密码
 小程序端 `action`：
 
 - 公开：`login`、`getSettings`、`ping`
-- 需登录：`getCatalog`、`listProducts`、`getProduct`、`me`、`updateProfile`、`changePassword`、`getCart`、`addToCart`、`updateCartItem`、`setCartCheckedAll`、`removeCartItem`、`getCheckoutPreview`、`createOrder`、`listMyOrders`、`listStaffOrders`、`exportStaffOrders`、`listSalesOptions`、`listCustomerOptions`、`listMyCustomers`、`getAssistCustomer`、`assistAddToCart`、`assistCreateOrder`、`getMyOrder`
+- 需登录：`getHome`、`getCatalog`、`listProducts`、`getProduct`、`me`、`updateProfile`、`changePassword`、`getCart`、`addToCart`、`updateCartItem`、`setCartCheckedAll`、`removeCartItem`、`getCheckoutPreview`、`createOrder`、`listMyOrders`、`listStaffOrders`、`exportStaffOrders`、`listSalesOptions`、`listCustomerOptions`、`listMyCustomers`、`getAssistCustomer`、`assistAddToCart`、`assistCreateOrder`、`getMyOrder`、`cancelMyOrder`
+- `getHome`：首页聚合接口，一次返回店铺信息、分类和首页 10 个商品，减少首屏云调用次数
 - `getCatalog` 默认返回店铺信息、分类和全部商品；传 `includeProducts: false` 时只返回店铺信息和分类，供商品页首屏使用
 - `listProducts` 参数：`page`、`categoryId`、`keyword`、`sort`；小程序只按商品名称搜索，`sort` 当前固定默认排序；固定每页 10 条，返回 `list` 和 `hasMore`，不查询总数
-- `listMyOrders` 参数：`page`、`pageSize`（默认和前端均为 10），返回 `list` 和 `hasMore`，不查询总数
+- `listMyOrders` 参数：`page`、`pageSize`（默认和前端均为 10），返回 `list` 和 `hasMore`，不查询总数；`KH` 查自己的订单，`XS` 查自己的演示订单
+- `cancelMyOrder`：仅 `KH`，只能取消自己状态为 `DONE` 的订单，取消后回滚商品销量；`CLOSED` 和 `CANCELLED` 不可再取消
 - `listStaffOrders` 参数：`page`、`pageSize`、`start`、`end`、`customerId`、`salesId`；仅 `XS` / `GLY`，销售强制只查自己的订单，管理员可按销售筛选；时间跨度最多一年
 - `exportStaffOrders`：传入勾选订单 `ids` 数组导出 Excel，返回 `base64` 和文件名；销售只能导出自己的订单，最多 100 单
 - `listCustomerOptions`：`XS` 返回自己的客户，`GLY` 返回全部客户，供订单客户下拉筛选
@@ -552,8 +561,8 @@ node scripts/hash-password.js 你的密码
 - `getAssistCustomer` / `assistAddToCart` / `assistCreateOrder`：仅 `XS`，只能操作自己名下客户；帮下单订单记录 `orderSource: "ASSIST"`
 - `listProducts` 传入 `customerId` 时，销售帮下单会按该客户的分类绑定过滤商品
 - `listSalesOptions`：仅 `GLY`，返回启用中的销售列表，供小程序订单筛选
-- `getMyOrder`：客户只能查看自己的订单，销售只能查看自己负责的订单，管理员可查看全部；运营不可查看
-- 购物车操作、结算、下单仅允许 `KH`；销售/管理员调用会返回业务错误
+- `getMyOrder`：客户只能查看自己的订单，销售可以查看自己负责的客户订单和自己的演示订单，管理员可查看全部；运营不可查看
+- 购物车操作、结算、下单允许 `KH` 和 `XS`（`XS` 生成的订单标记 `isDemo`，不计入销量和统计）；其他角色调用会返回业务错误
 
 ## 安全说明
 

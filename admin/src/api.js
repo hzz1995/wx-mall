@@ -171,6 +171,9 @@ export const api = {
   cancelOrder(id) {
     return request(`/orders/${id}`, { method: 'PATCH', body: { status: 'CANCELLED' } })
   },
+  closeOrder(id) {
+    return request(`/orders/${id}`, { method: 'PATCH', body: { status: 'CLOSED' } })
+  },
   products(params) {
     return request(`/products${toQuery(params)}`)
   },

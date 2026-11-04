@@ -50,8 +50,9 @@ function buildOrderRows(orders) {
         '收货地址': order.address || '',
         '所属销售': order.salesName || '',
         '帮下单人': order.assistedByName || '',
-        '订单来源': order.orderSource === 'ASSIST' ? '销售帮下单' : '客户自建',
-        '订单状态': order.status === 'CANCELLED' ? '已取消' : '已完成',
+        '订单来源': order.isDemo ? '销售演示' : (order.orderSource === 'ASSIST' ? '销售帮下单' : '客户自建'),
+        '订单类型': order.isDemo ? '演示订单' : '正式订单',
+        '订单状态': order.status === 'CANCELLED' ? '已取消' : (order.status === 'CLOSED' ? '已关闭' : '已完成'),
         '商品名称': item.name || '',
         '规格型号': item.spec || '',
         '数量': quantity,
@@ -72,8 +73,8 @@ function buildOrderExport(orders) {
   sheet['!cols'] = [
     { wch: 20 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 18 },
     { wch: 28 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 },
-    { wch: 24 }, { wch: 16 }, { wch: 8 }, { wch: 10 }, { wch: 10 },
-    { wch: 12 }, { wch: 24 }
+    { wch: 10 }, { wch: 24 }, { wch: 16 }, { wch: 8 }, { wch: 10 },
+    { wch: 10 }, { wch: 12 }, { wch: 24 }
   ]
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, sheet, '订单明细')

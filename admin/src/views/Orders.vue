@@ -3,7 +3,7 @@
     <div class="page-head">
       <div>
         <h2>订单</h2>
-        <p class="sub"></p>
+        <p class="sub">默认只展示正式订单，销售演示订单可在订单类型中切换查看</p>
       </div>
       <div class="head-actions">
         <el-button
@@ -26,7 +26,18 @@
         @change="search"
       >
         <el-option label="已完成" value="DONE" />
+        <el-option label="已关闭" value="CLOSED" />
         <el-option label="已取消" value="CANCELLED" />
+      </el-select>
+      <el-select
+        v-model="filters.orderType"
+        placeholder="订单类型"
+        style="width: 140px"
+        @change="search"
+      >
+        <el-option label="正式订单" value="normal" />
+        <el-option label="演示订单" value="demo" />
+        <el-option label="全部订单" value="all" />
       </el-select>
       <el-select
         v-if="isAdmin"
@@ -77,7 +88,7 @@
       <el-table-column label="负责销售" width="110">
         <template #default="{ row }">{{ row.salesName || '—' }}</template>
       </el-table-column>
-      <el-table-column label="来源" width="110">
+      <el-table-column label="来源" width="120">
         <template #default="{ row }">
           <el-tag :type="orderSourceType(row)" effect="light">{{ orderSourceText(row) }}</el-tag>
         </template>
@@ -106,9 +117,10 @@
           <el-tag :type="statusType(row.status)" effect="light">{{ statusText(row.status) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="120" fixed="right">
+      <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="openDetail(row)">详情</el-button>
+          <el-button v-if="isAdmin && row.status === 'DONE'" link type="primary" @click="close(row)">关闭</el-button>
           <el-button v-if="isAdmin && row.status === 'DONE'" link type="danger" @click="cancel(row)">取消</el-button>
         </template>
       </el-table-column>
@@ -139,6 +151,7 @@
           <div class="detail-row" v-if="current.shopName"><span>店铺名称</span><b>{{ current.shopName }}</b></div>
           <div class="detail-row" v-if="current.salesName"><span>负责销售</span><b>{{ current.salesName }}</b></div>
           <div class="detail-row"><span>订单来源</span><b>{{ orderSourceText(current) }}</b></div>
+          <div class="detail-row" v-if="current.isDemo"><span>订单类型</span><b>销售演示订单（不计入统计）</b></div>
           <div class="detail-row" v-if="current.orderSource === 'ASSIST'">
             <span>帮下单人</span><b>{{ current.assistedByName || current.salesName || '—' }}</b>
           </div>
@@ -162,13 +175,10 @@
           合计 <span class="amount total-amount">¥{{ money(current.totalAmount) }}</span>
         </div>
 
-        <el-button
-          v-if="isAdmin && current.status === 'DONE'"
-          type="danger"
-          plain
-          style="margin-top: 26px; width: 100%"
-          @click="cancel(current)"
-        >取消该订单</el-button>
+        <div v-if="isAdmin && current.status === 'DONE'" class="drawer-actions">
+          <el-button type="primary" plain @click="close(current)">关闭订单</el-button>
+          <el-button type="danger" plain @click="cancel(current)">取消订单</el-button>
+        </div>
       </template>
     </el-drawer>
   </div>
@@ -192,7 +202,7 @@ const pageSize = 10
 const loading = ref(false)
 const exporting = ref(false)
 const selectedOrders = ref([])
-const filters = reactive({ status: '', salesId: '', keyword: '' })
+const filters = reactive({ status: '', orderType: 'normal', salesId: '', keyword: '' })
 const salesList = ref([])
 
 const detailVisible = ref(false)
@@ -207,10 +217,12 @@ function totalQuantity(row) {
 }
 
 function orderSourceText(row) {
+  if (row && row.isDemo) return '销售演示'
   return row && row.orderSource === 'ASSIST' ? '销售帮下单' : '客户自建'
 }
 
 function orderSourceType(row) {
+  if (row && row.isDemo) return 'info'
   return row && row.orderSource === 'ASSIST' ? 'warning' : 'success'
 }
 
@@ -259,6 +271,7 @@ async function load() {
   try {
     const data = await api.orders({
       status: filters.status || '',
+      orderType: filters.orderType || 'normal',
       salesId: filters.salesId || '',
       keyword: filters.keyword.trim(),
       page: page.value,
@@ -289,6 +302,27 @@ async function openDetail(row) {
   try {
     const data = await api.order(row._id)
     current.value = data.order
+  } catch (err) {
+    ElMessage.error(err.message)
+  }
+}
+
+async function close(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确认关闭订单 ${row.orderNo}？关闭后订单结束，客户不能再取消，商品销量保留。`,
+      '关闭订单',
+      { confirmButtonText: '确认关闭', cancelButtonText: '再想想', type: 'warning' }
+    )
+  } catch (err) {
+    return
+  }
+
+  try {
+    await api.closeOrder(row._id)
+    ElMessage.success('订单已关闭')
+    detailVisible.value = false
+    load()
   } catch (err) {
     ElMessage.error(err.message)
   }
@@ -414,5 +448,16 @@ onMounted(() => {
 
 .total-amount {
   font-size: 22px;
+}
+
+.drawer-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 26px;
+}
+
+.drawer-actions .el-button {
+  flex: 1;
+  margin-left: 0;
 }
 </style>

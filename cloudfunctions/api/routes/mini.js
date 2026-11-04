@@ -26,7 +26,6 @@ const {
 
 const MAX_ORDER_ITEMS = 20
 const MINI_PAGE_SIZE = 10
-const MIN_CART_ORDER_AMOUNT = 19900
 const MAX_EXPORT_SELECTED = 100
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -94,10 +93,14 @@ function toProductListItem(product) {
   }
 }
 
-function ensureCustomer(user, message) {
-  if (user.type !== 'KH') {
-    throw new Error(message || '只有客户账号可以使用该功能')
+function ensureShopper(user, message) {
+  if (!['KH', 'XS'].includes(user.type)) {
+    throw new Error(message || '仅客户和销售账号可以使用该功能')
   }
+}
+
+function isDemoShopper(user) {
+  return Boolean(user) && user.type === 'XS'
 }
 
 function validatePhone(value) {
@@ -406,7 +409,7 @@ async function getCart(user) {
 }
 
 async function addToCart(user, event) {
-  ensureCustomer(user, '只有客户账号可以加入购物车')
+  ensureShopper(user, '只有客户和销售账号可以加入购物车')
   const product = await getProductById(event.productId)
   if (!product || product.status !== 'ON' || !canAccessProduct(user, product)) {
     throw new Error('商品不存在或已下架')
@@ -426,7 +429,7 @@ async function addToCart(user, event) {
 }
 
 async function updateCartItem(user, event) {
-  ensureCustomer(user, '只有客户账号可以操作购物车')
+  ensureShopper(user, '只有客户和销售账号可以操作购物车')
   const productId = String(event.productId || '')
   if (!productId) throw new Error('缺少商品信息')
   const cart = await readCart(user._id)
@@ -450,7 +453,7 @@ async function updateCartItem(user, event) {
 }
 
 async function setCartCheckedAll(user, event) {
-  ensureCustomer(user, '只有客户账号可以操作购物车')
+  ensureShopper(user, '只有客户和销售账号可以操作购物车')
   const checked = Boolean(event.checked)
   const cart = await readCart(user._id)
   const rawItems = cart.items || []
@@ -470,7 +473,7 @@ async function setCartCheckedAll(user, event) {
 }
 
 async function removeCartItem(user, event) {
-  ensureCustomer(user, '只有客户账号可以操作购物车')
+  ensureShopper(user, '只有客户和销售账号可以操作购物车')
   const productId = String(event.productId || '')
   if (!productId) throw new Error('缺少商品信息')
   const cart = await readCart(user._id)
@@ -535,7 +538,7 @@ async function resolveCheckoutItems(user, rawItems) {
 }
 
 async function getCheckoutPreview(user, event) {
-  ensureCustomer(user, '只有客户账号可以下单')
+  ensureShopper(user, '只有客户和销售账号可以下单')
   const result = await resolveCheckoutItems(user, event.items)
   return {
     ...result,
@@ -545,7 +548,7 @@ async function getCheckoutPreview(user, event) {
 }
 
 async function createOrder(user, event, openid) {
-  ensureCustomer(user, '只有客户账号可以下单')
+  ensureShopper(user, '只有客户和销售账号可以下单')
   const result = await resolveCheckoutItems(user, event.items)
 
   const address = String(event.address || '').trim()
@@ -556,10 +559,11 @@ async function createOrder(user, event, openid) {
   if (remark.length > 200) throw new Error('备注请控制在 200 字以内')
 
   const source = event.source === 'cart' ? 'cart' : 'direct'
-  if (source === 'cart' && result.totalAmount < MIN_CART_ORDER_AMOUNT) {
-    throw new Error('购物车满 199 元才能创建订单')
-  }
-  const salesName = user.salesId ? await getSalesName(user.salesId) : ''
+  const isDemo = isDemoShopper(user)
+  const salesIdSnapshot = isDemo ? user._id : (user.salesId || '')
+  const salesName = isDemo
+    ? (user.name || '')
+    : (user.salesId ? await getSalesName(user.salesId) : '')
   const now = new Date()
 
   const order = {
@@ -572,11 +576,12 @@ async function createOrder(user, event, openid) {
     phone: user.phone,
     shopName: user.shopName || '',
     address,
-    salesId: user.salesId || '',
+    salesId: salesIdSnapshot,
     salesName,
     remark,
     source,
     orderSource: 'SELF',
+    isDemo,
     status: 'DONE',
     createdAt: now,
     updatedAt: now
@@ -584,17 +589,19 @@ async function createOrder(user, event, openid) {
 
   const addRes = await db.collection('orders').add({ data: order })
 
-  await Promise.all(
-    result.items.map(item =>
-      db
-        .collection('products')
-        .doc(item.productId)
-        .update({ data: { sales: _.inc(item.quantity), updatedAt: now } })
-        .catch(err => console.warn('increase sales failed', err))
+  if (!isDemo) {
+    await Promise.all(
+      result.items.map(item =>
+        db
+          .collection('products')
+          .doc(item.productId)
+          .update({ data: { sales: _.inc(item.quantity), updatedAt: now } })
+          .catch(err => console.warn('increase sales failed', err))
+      )
     )
-  )
+  }
 
-  if (address !== (user.address || '')) {
+  if (!isDemo && address !== (user.address || '')) {
     await db
       .collection('users')
       .doc(user._id)
@@ -623,6 +630,7 @@ function buildStaffOrderWhere(user, event) {
     : String(event.salesId || '').trim()
   const range = resolveStaffOrderRange(event)
   const where = {
+    isDemo: _.neq(true),
     createdAt: _.gte(new Date(range.start)).and(_.lte(new Date(range.end)))
   }
   if (salesId) where.salesId = salesId
@@ -724,12 +732,14 @@ async function listMyCustomers(user) {
     db.collection('users').where({ type: 'KH', salesId: String(user._id) }).limit(1000).get(),
     db.collection('orders').where({
       salesId: String(user._id),
-      status: 'DONE',
+      status: _.in(['DONE', 'CLOSED']),
+      isDemo: _.neq(true),
       createdAt: _.gte(new Date(currentStart)).and(_.lte(new Date(now)))
     }).limit(1000).get(),
     db.collection('orders').where({
       salesId: String(user._id),
-      status: 'DONE',
+      status: _.in(['DONE', 'CLOSED']),
+      isDemo: _.neq(true),
       createdAt: _.gte(new Date(prevStart)).and(_.lt(new Date(currentStart)))
     }).limit(1000).get()
   ])
@@ -897,7 +907,7 @@ async function assistCreateOrder(user, event) {
 }
 
 async function listMyOrders(user, event) {
-  if (user.type !== 'KH') {
+  if (!['KH', 'XS'].includes(user.type)) {
     return { list: [], hasMore: false }
   }
   const page = toInt(event.page, 1, 1, 10000)
@@ -933,10 +943,54 @@ async function getMyOrder(user, event) {
   if (user.type === 'KH' && String(order.userId) !== String(user._id)) {
     throw new Error('订单不存在')
   }
-  if (user.type === 'XS' && String(order.salesId || '') !== String(user._id)) {
+  if (
+    user.type === 'XS' &&
+    String(order.userId) !== String(user._id) &&
+    String(order.salesId || '') !== String(user._id)
+  ) {
     throw new Error('订单不存在')
   }
   return { order: serializeOrder(order) }
+}
+
+async function cancelMyOrder(user, event) {
+  if (user.type !== 'KH') throw new Error('仅客户可以取消订单')
+  if (!event.id) throw new Error('缺少订单编号')
+  let order = null
+  try {
+    const res = await db.collection('orders').doc(String(event.id)).get()
+    order = res.data
+  } catch (err) {
+    order = null
+  }
+  if (!order || String(order.userId) !== String(user._id)) {
+    throw new Error('订单不存在')
+  }
+  if (order.status === 'CANCELLED') {
+    return { order: serializeOrder(order) }
+  }
+  if (order.status !== 'DONE') {
+    throw new Error('订单已关闭，无法取消')
+  }
+
+  const now = new Date()
+  await db.collection('orders').doc(String(order._id)).update({
+    data: { status: 'CANCELLED', cancelledAt: now, updatedAt: now }
+  })
+
+  if (!order.isDemo) {
+    await Promise.all(
+      (order.items || []).map(item =>
+        db.collection('products').doc(item.productId).update({
+          data: { sales: _.inc(-Number(item.quantity || 0)), updatedAt: now }
+        }).catch(err => console.warn('rollback sales failed', err))
+      )
+    )
+  }
+
+  return {
+    order: serializeOrder({ ...order, status: 'CANCELLED', cancelledAt: now, updatedAt: now })
+  }
 }
 
 async function handleMini(event, openid) {
@@ -1002,6 +1056,8 @@ async function handleMini(event, openid) {
         return await assistCreateOrder(user, event)
       case 'getMyOrder':
         return await getMyOrder(user, event)
+      case 'cancelMyOrder':
+        return await cancelMyOrder(user, event)
       default:
         throw new Error('未知操作')
     }

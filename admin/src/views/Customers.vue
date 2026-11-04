@@ -3,7 +3,7 @@
     <div class="page-head">
       <div>
         <h2>{{ isSales ? '我的客户' : '客户' }}</h2>
-        <p class="sub">{{ isSales ? '只显示分配给你的客户与订单统计' : '客户账号与已完成订单汇总' }}</p>
+        <p class="sub">{{ isSales ? '只显示分配给你的客户与订单统计' : '客户账号与有效订单汇总' }}</p>
       </div>
       <div class="head-actions">
         <el-button type="primary" @click="openCreate">新建客户</el-button>

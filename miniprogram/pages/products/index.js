@@ -36,7 +36,7 @@ Page({
   onLoad() {
     if (!requireLogin('/pages/products/index')) return
     const user = getUser()
-    this.setData({ canShop: Boolean(user && user.type === 'KH') })
+    this.setData({ canShop: Boolean(user && ['KH', 'XS'].includes(user.type)) })
     const cached = this.readHomeCache()
     if (cached) this.applyHome(cached)
     this.load()
@@ -48,7 +48,7 @@ Page({
       return
     }
     const user = getUser()
-    this.setData({ canShop: Boolean(user && user.type === 'KH') })
+    this.setData({ canShop: Boolean(user && ['KH', 'XS'].includes(user.type)) })
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 0 })
     }
@@ -288,7 +288,7 @@ Page({
   openQtyDialog(event) {
     if (this.data.addingId) return
     if (!this.data.canShop) {
-      wx.showToast({ title: '只有客户账号可以加入购物车', icon: 'none' })
+      wx.showToast({ title: '只有客户和销售账号可以加入购物车', icon: 'none' })
       return
     }
     const id = event.currentTarget.dataset.id
@@ -340,7 +340,9 @@ Page({
   },
 
   goOrders() {
-    wx.navigateTo({ url: '/pages/orders/index' })
+    const user = getUser()
+    const mine = user && user.type === 'XS'
+    wx.navigateTo({ url: `/pages/orders/index${mine ? '?mine=1' : ''}` })
   },
 
   goHome() {

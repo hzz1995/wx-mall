@@ -202,6 +202,15 @@
   line-height: 1.4;
 }
 
+.cancel-btn {
+  padding: 6rpx 18rpx;
+  border-radius: 24rpx;
+  border: 1rpx solid #c9c6bb;
+  color: var(--muted);
+  font-size: 21rpx;
+  line-height: 1.4;
+}
+
 .order-more {
   font-size: 23rpx;
   color: var(--green);

@@ -54,7 +54,9 @@ Page({
       const data = await api.call('getMyOrder', { id })
       const order = data.order
       order.statusText = STATUS_TEXT[order.status] || order.status
-      order.statusClass = order.status === 'CANCELLED' ? 'tag-cancel' : 'tag-done'
+      order.statusClass = order.status === 'CANCELLED'
+        ? 'tag-cancel'
+        : (order.status === 'CLOSED' ? 'tag-closed' : 'tag-done')
       order.totalText = formatPrice(order.totalAmount)
       order.createdAtText = formatTime(order.createdAt)
       order.items = (order.items || []).map(item => ({
@@ -85,11 +87,37 @@ Page({
     })
   },
 
+  cancelOrder() {
+    const order = this.data.order
+    if (!order || order.status !== 'DONE' || !this.data.isCustomer) return
+    wx.showModal({
+      title: '取消订单',
+      content: '取消后商品销量会回滚，确认取消该订单？',
+      confirmText: '取消订单',
+      confirmColor: '#e2572b',
+      cancelText: '再想想',
+      success: async res => {
+        if (!res.confirm) return
+        try {
+          await api.call('cancelMyOrder', { id: order._id })
+          this.setData({ created: false })
+          wx.showToast({ title: '订单已取消', icon: 'none' })
+          this.load(order._id)
+        } catch (err) {
+          api.toastError(err)
+        }
+      }
+    })
+  },
+
   goHome() {
     wx.switchTab({ url: '/pages/products/index' })
   },
 
   goOrders() {
-    wx.redirectTo({ url: '/pages/orders/index' })
+    const user = getUser()
+    const order = this.data.order
+    const mine = user && user.type === 'XS' && order && String(order.userId) === String(user._id)
+    wx.redirectTo({ url: `/pages/orders/index${mine ? '?mine=1' : ''}` })
   }
 })

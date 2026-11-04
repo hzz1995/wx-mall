@@ -14,8 +14,11 @@
 
     <view class="status-card">
       <view class="status-title">{{order.statusText}}</view>
-      <view class="status-sub" wx:if="{{order.status === 'DONE'}}">{{isCustomer ? '' : '订单已完成'}}</view>
-      <view class="status-sub" wx:else>该订单已被店主取消</view>
+      <view class="status-sub" wx:if="{{order.status === 'DONE'}}">
+        {{isCustomer ? '订单已提交，如需取消可在下方操作' : '订单已完成'}}
+      </view>
+      <view class="status-sub" wx:elif="{{order.status === 'CLOSED'}}">该订单已结束，已停止供货流程</view>
+      <view class="status-sub" wx:else>该订单已取消</view>
     </view>
 
     <view class="section-title">商品</view>
@@ -80,6 +83,12 @@
         <view class="info-value">{{order.remark || '—'}}</view>
       </view>
     </view>
+
+    <button
+      wx:if="{{isCustomer && order.status === 'DONE'}}"
+      class="btn cancel-order-btn"
+      bindtap="cancelOrder"
+    >取消订单</button>
 
     <view class="actions">
       <button class="btn btn-ghost" bindtap="goHome">继续逛逛</button>

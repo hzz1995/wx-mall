@@ -74,6 +74,10 @@ Page({
     wx.navigateTo({ url: '/pages/orders/index' })
   },
 
+  goMyOrders() {
+    wx.navigateTo({ url: '/pages/orders/index?mine=1' })
+  },
+
   goProfile() {
     wx.navigateTo({ url: '/pages/profile/index' })
   },

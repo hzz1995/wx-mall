@@ -10,11 +10,15 @@ export function time(timestamp) {
 }
 
 export function statusText(status) {
-  return status === 'CANCELLED' ? '已取消' : '已完成'
+  if (status === 'CANCELLED') return '已取消'
+  if (status === 'CLOSED') return '已关闭'
+  return '已完成'
 }
 
 export function statusType(status) {
-  return status === 'CANCELLED' ? 'info' : 'success'
+  if (status === 'CANCELLED') return 'info'
+  if (status === 'CLOSED') return 'warning'
+  return 'success'
 }
 
 export function yuanToCents(value) {

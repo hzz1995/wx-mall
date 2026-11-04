@@ -1,14 +1,14 @@
 <view class="page orders">
   <view class="head">
-    <view class="head-title">{{isCustomer ? '我的订单' : '客户订单'}}</view>
+    <view class="head-title">{{mineMode || isCustomer ? '我的订单' : '客户订单'}}</view>
     <view
-      wx:if="{{isStaff}}"
+      wx:if="{{isStaff && !mineMode}}"
       class="export-btn {{selectedCount ? '' : 'disabled'}}"
       bindtap="exportOrders"
     >{{exporting ? '导出中…' : '导出 Excel' + (selectedCount ? '（' + selectedCount + '）' : '')}}</view>
   </view>
 
-  <view class="staff-filters" wx:if="{{isStaff}}">
+  <view class="staff-filters" wx:if="{{isStaff && !mineMode}}">
     <view class="picker-row">
       <picker mode="selector" range="{{customerNames}}" value="{{customerIndex}}" bindchange="onCustomerChange">
         <view class="select-pill">客户：{{customerNames[customerIndex]}} ▾</view>
@@ -60,7 +60,7 @@
       <view class="order-top">
         <view class="order-top-left">
           <view
-            wx:if="{{isStaff}}"
+            wx:if="{{isStaff && !mineMode}}"
             class="order-check {{item.selected ? 'checked' : ''}}"
             data-id="{{item._id}}"
             catchtap="toggleOrderSelect"
@@ -70,17 +70,19 @@
           <view class="order-no">{{item.orderNo}}</view>
         </view>
         <view class="order-tags">
-          <view class="source-tag {{item.orderSource === 'ASSIST' ? 'assist' : ''}}">{{item.orderSource === 'ASSIST' ? '销售帮下单' : '客户自建'}}</view>
+          <view class="source-tag {{item.orderSource === 'ASSIST' ? 'assist' : ''}}">
+            {{item.orderSource === 'ASSIST' ? '销售帮下单' : '客户自建'}}
+          </view>
           <view class="tag {{item.statusClass}}">{{item.statusText}}</view>
         </view>
       </view>
 
-      <view class="order-customer" wx:if="{{isStaff}}">
+      <view class="order-customer" wx:if="{{isStaff && !mineMode}}">
         <text>{{item.customerName || '未填写'}}</text>
         <text wx:if="{{item.shopName}}"> · {{item.shopName}}</text>
         <text wx:if="{{item.phone}}"> · {{item.phone}}</text>
       </view>
-      <view class="order-sales" wx:if="{{isAdmin}}">所属销售：{{item.salesName || '—'}}</view>
+      <view class="order-sales" wx:if="{{isAdmin && !mineMode}}">所属销售：{{item.salesName || '—'}}</view>
 
       <view class="order-body">
         <view class="thumb">
@@ -97,6 +99,12 @@
       <view class="order-bottom">
         <view class="order-time">{{item.createdAtText}}</view>
         <view class="order-actions">
+          <view
+            wx:if="{{isCustomer && item.status === 'DONE'}}"
+            class="cancel-btn"
+            data-id="{{item._id}}"
+            catchtap="cancelOrder"
+          >取消订单</view>
           <view wx:if="{{isCustomer}}" class="reorder-btn" data-index="{{index}}" catchtap="reorder">再来一单</view>
           <view class="order-more">详情 ›</view>
         </view>
@@ -113,10 +121,11 @@
     <view class="state-action" bindtap="load">重新加载</view>
   </view>
   <view wx:else class="state">
-    {{isCustomer ? '还没有订单' : '暂无符合条件的订单'}}
+    {{mineMode || isCustomer ? '还没有订单' : '暂无符合条件的订单'}}
     <view class="state-hint" wx:if="{{isCustomer}}">去挑几件喜欢的商品吧</view>
-    <view class="state-hint" wx:if="{{!isCustomer}}">可以换个时间范围或客户</view>
-    <view class="state-btn" wx:if="{{isCustomer}}">
+    <view class="state-hint" wx:if="{{mineMode}}">加购商品后即可体验下单流程</view>
+    <view class="state-hint" wx:if="{{!isCustomer && !mineMode}}">可以换个时间范围或客户</view>
+    <view class="state-btn" wx:if="{{isCustomer || mineMode}}">
       <button class="btn btn-primary" bindtap="goShopping">去逛逛</button>
     </view>
   </view>

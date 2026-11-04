@@ -34,7 +34,7 @@ const {
   toTimestamp
 } = require('../lib/store')
 
-const ORDER_STATUS = ['DONE', 'CANCELLED']
+const ORDER_STATUS = ['DONE', 'CLOSED', 'CANCELLED']
 const USER_TYPES = ['KH', 'XS', 'GLY', 'YY']
 const MAX_IMAGES = 4
 const MAX_VIDEOS = 2
@@ -535,19 +535,26 @@ function buildOrderWhere(query, staff) {
   if (status && !ORDER_STATUS.includes(status)) {
     throw new HttpError(400, '订单状态不合法')
   }
+  const orderType = String(query.orderType || '').trim() || 'normal'
+  if (!['normal', 'demo', 'all'].includes(orderType)) {
+    throw new HttpError(400, '订单类型不合法')
+  }
   const salesId = staff.type === 'XS' ? String(staff._id) : String(query.salesId || '').trim()
   const keyword = String(query.keyword || '').trim()
+  const demoFilter = orderType === 'demo' ? true : (orderType === 'normal' ? _.neq(true) : null)
 
   if (keyword) {
     const reg = db.RegExp({ regexp: escapeRegExp(keyword), options: 'i' })
     const branches = [{ customerName: reg }, { phone: reg }, { orderNo: reg }, { shopName: reg }]
     if (status) branches.forEach(branch => { branch.status = status })
     if (salesId) branches.forEach(branch => { branch.salesId = salesId })
+    if (demoFilter !== null) branches.forEach(branch => { branch.isDemo = demoFilter })
     return _.or(branches)
   }
   const where = {}
   if (status) where.status = status
   if (salesId) where.salesId = salesId
+  if (demoFilter !== null) where.isDemo = demoFilter
   return where
 }
 
@@ -613,29 +620,38 @@ async function getOrder(id, staff) {
   return { order: withUrl }
 }
 
-async function cancelOrder(id) {
+async function updateOrderStatus(id, status) {
   const order = await getOrderDoc(id)
   if (!order) throw new HttpError(404, '订单不存在')
-  if (order.status === 'CANCELLED') {
+  if (order.status === status) {
     const [withUrl] = await withOrderImageUrls([serializeOrder(order)])
     return { order: withUrl }
   }
+  if (order.status !== 'DONE') {
+    throw new HttpError(400, status === 'CLOSED' ? '当前订单状态不能关闭' : '当前订单状态不能取消')
+  }
 
   const now = new Date()
-  await db.collection('orders').doc(String(id)).update({
-    data: { status: 'CANCELLED', updatedAt: now }
-  })
+  const data = { status, updatedAt: now }
+  if (status === 'CLOSED') {
+    data.closedAt = now
+  } else {
+    data.cancelledAt = now
+  }
+  await db.collection('orders').doc(String(id)).update({ data })
 
-  await Promise.all(
-    (order.items || []).map(item =>
-      db.collection('products').doc(item.productId).update({
-        data: { sales: _.inc(-Number(item.quantity || 0)), updatedAt: now }
-      }).catch(err => console.warn('rollback sales failed', err))
+  if (status === 'CANCELLED' && !order.isDemo) {
+    await Promise.all(
+      (order.items || []).map(item =>
+        db.collection('products').doc(item.productId).update({
+          data: { sales: _.inc(-Number(item.quantity || 0)), updatedAt: now }
+        }).catch(err => console.warn('rollback sales failed', err))
+      )
     )
-  )
+  }
 
   const updatedOrder = await withOrderImageUrls([
-    serializeOrder({ ...order, status: 'CANCELLED', updatedAt: now })
+    serializeOrder({ ...order, ...data })
   ])
   return { order: updatedOrder[0] }
 }
@@ -999,7 +1015,7 @@ async function listCustomers(staff, query) {
   const userWhere = salesId ? { type: 'KH', salesId } : { type: 'KH' }
   const [userRes, orderRes] = await Promise.all([
     db.collection('users').where(userWhere).limit(1000).get(),
-    db.collection('orders').where({ status: 'DONE' }).orderBy('createdAt', 'desc').limit(1000).get()
+    db.collection('orders').where({ status: _.in(['DONE', 'CLOSED']), isDemo: _.neq(true) }).orderBy('createdAt', 'desc').limit(1000).get()
   ])
 
   const map = new Map()
@@ -1074,7 +1090,8 @@ async function getReports(query) {
   const salesId = String((query && query.salesId) || '').trim()
   const shopName = String((query && query.shopName) || '').trim().slice(0, 50)
   const orderWhere = {
-    status: 'DONE',
+    status: _.in(['DONE', 'CLOSED']),
+    isDemo: _.neq(true),
     createdAt: _.gte(new Date(range.start)).and(_.lte(new Date(range.end)))
   }
   if (salesId) orderWhere.salesId = salesId
@@ -1491,8 +1508,12 @@ async function route({ method, path, query, headers, body }) {
     if (method === 'GET' && !id) return listOrders(query, staff)
     if (method === 'GET' && id) return getOrder(id, staff)
     if (method === 'PATCH' && id) {
-      if (!isAdmin) throw new HttpError(403, '仅管理员可取消订单')
-      return cancelOrder(id)
+      if (!isAdmin) throw new HttpError(403, '仅管理员可操作订单状态')
+      const status = String((body && body.status) || '').toUpperCase()
+      if (!['CANCELLED', 'CLOSED'].includes(status)) {
+        throw new HttpError(400, '订单状态不合法')
+      }
+      return updateOrderStatus(id, status)
     }
   }
   if (resource === 'customers') {

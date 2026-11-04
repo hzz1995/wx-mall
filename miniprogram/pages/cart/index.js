@@ -6,8 +6,6 @@ const {
 } = require('../../utils/session')
 const { syncCartBadge } = require('../../utils/cart')
 
-const MIN_ORDER_AMOUNT = 19900
-
 Page({
   data: {
     loggedIn: false,
@@ -16,8 +14,6 @@ Page({
     count: 0,
     selectedCount: 0,
     totalText: '0',
-    reachMin: false,
-    shortfallText: '199',
     allChecked: false,
     loading: false,
     error: ''
@@ -29,7 +25,7 @@ Page({
       this.getTabBar().setData({ selected: 1 })
     }
     const user = getUser() || {}
-    const isCustomer = user.type === 'KH'
+    const isCustomer = ['KH', 'XS'].includes(user.type)
     this.setData({ loggedIn: true, isCustomer })
     if (!isCustomer) {
       syncCartBadge(0)
@@ -38,8 +34,6 @@ Page({
         count: 0,
         selectedCount: 0,
         totalText: '0',
-        reachMin: false,
-        shortfallText: '199',
         allChecked: false,
         loading: false
       })
@@ -73,8 +67,6 @@ Page({
         count: data.count || 0,
         selectedCount: data.selectedCount || 0,
         totalText: formatPrice(totalAmount),
-        reachMin: totalAmount >= MIN_ORDER_AMOUNT,
-        shortfallText: formatPrice(Math.max(0, MIN_ORDER_AMOUNT - totalAmount)),
         allChecked: validItems.length > 0 && validItems.every(item => item.checked),
         loading: false
       })
@@ -140,14 +132,6 @@ Page({
     const selected = this.data.items.filter(item => item.checked && item.onSale)
     if (!selected.length) {
       wx.showToast({ title: '请选择要结算的商品', icon: 'none' })
-      return
-    }
-    if (!this.data.reachMin) {
-      wx.showModal({
-        title: '未满起订金额',
-        content: `购物车满 ¥199 才能创建订单，还差 ¥${this.data.shortfallText}`,
-        showCancel: false
-      })
       return
     }
     wx.setStorageSync('mall_checkout', {

@@ -37,7 +37,9 @@ function decorate(order) {
   return {
     ...order,
     statusText: STATUS_TEXT[order.status] || order.status,
-    statusClass: order.status === 'CANCELLED' ? 'tag-cancel' : 'tag-done',
+    statusClass: order.status === 'CANCELLED'
+      ? 'tag-cancel'
+      : (order.status === 'CLOSED' ? 'tag-closed' : 'tag-done'),
     totalText: formatPrice(order.totalAmount),
     createdAtText: formatTime(order.createdAt),
     itemName: first.name || '商品',
@@ -53,6 +55,7 @@ Page({
     isCustomer: false,
     isStaff: false,
     isAdmin: false,
+    mineMode: false,
     list: [],
     loading: true,
     loadingMore: false,
@@ -77,6 +80,11 @@ Page({
     salesId: ''
   },
 
+  onLoad(options) {
+    this.mineRequested = Boolean(options && options.mine === '1')
+    this.setData({ mineMode: this.mineRequested })
+  },
+
   onShow() {
     if (!requireLogin('/pages/orders/index')) return
     const user = getUser()
@@ -89,16 +97,20 @@ Page({
       return
     }
 
+    const mineMode = Boolean(this.mineRequested && type === 'XS')
     this.setData({
       isCustomer,
       isStaff,
-      isAdmin: type === 'GLY'
+      isAdmin: type === 'GLY',
+      mineMode
     })
-    wx.setNavigationBarTitle({ title: isCustomer ? '我的订单' : '客户订单' })
-    if (isStaff && !this.customersLoaded) {
+    wx.setNavigationBarTitle({
+      title: mineMode || isCustomer ? '我的订单' : '客户订单'
+    })
+    if (isStaff && !mineMode && !this.customersLoaded) {
       this.loadCustomerOptions()
     }
-    if (this.data.isAdmin && !this.salesLoaded) {
+    if (type === 'GLY' && !mineMode && !this.salesLoaded) {
       this.loadSalesOptions()
     }
     this.load(true)
@@ -186,7 +198,7 @@ Page({
 
     let action = 'listMyOrders'
     let payload = { page: 1, pageSize: PAGE_SIZE }
-    if (this.data.isStaff) {
+    if (this.data.isStaff && !this.data.mineMode) {
       const query = this.buildStaffQuery(1)
       if (!query) {
         this.setData({ loading: false })
@@ -226,7 +238,7 @@ Page({
 
     let action = 'listMyOrders'
     let payload = { page: nextPage, pageSize: PAGE_SIZE }
-    if (this.data.isStaff) {
+    if (this.data.isStaff && !this.data.mineMode) {
       const query = this.buildStaffQuery(nextPage)
       if (!query) return
       action = 'listStaffOrders'
@@ -402,6 +414,29 @@ Page({
 
   goDetail(event) {
     wx.navigateTo({ url: `/pages/order-detail/index?id=${event.currentTarget.dataset.id}` })
+  },
+
+  cancelOrder(event) {
+    const id = event.currentTarget.dataset.id
+    const order = this.data.list.find(item => item._id === id)
+    if (!order || order.status !== 'DONE') return
+    wx.showModal({
+      title: '取消订单',
+      content: '取消后商品销量会回滚，确认取消该订单？',
+      confirmText: '取消订单',
+      confirmColor: '#e2572b',
+      cancelText: '再想想',
+      success: async res => {
+        if (!res.confirm) return
+        try {
+          await api.call('cancelMyOrder', { id })
+          wx.showToast({ title: '订单已取消', icon: 'none' })
+          this.load(true)
+        } catch (err) {
+          api.toastError(err)
+        }
+      }
+    })
   },
 
   reorder(event) {
