@@ -32,6 +32,29 @@ function yuan(cents) {
   return Number(((Number(cents) || 0) / 100).toFixed(2))
 }
 
+function displayWidth(value) {
+  const text = value == null ? '' : String(value)
+  let width = 0
+  for (const char of text) {
+    width += char.charCodeAt(0) > 0xff ? 2 : 1
+  }
+  return width
+}
+
+function buildColumnWidths(sheet, rows, XLSX) {
+  const headers = rows.length ? Object.keys(rows[0]) : []
+  const maxWidths = [28, 18, 18, 14, 22, 50, 14, 14, 12, 12, 12, 20, 40, 24, 10, 12, 12, 14, 50]
+  return headers.map((header, columnIndex) => {
+    let max = displayWidth(header)
+    for (let rowIndex = 1; rowIndex <= rows.length; rowIndex += 1) {
+      const cell = sheet[XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex })]
+      if (cell) max = Math.max(max, displayWidth(cell.v))
+    }
+    const limit = maxWidths[columnIndex] || 30
+    return { wch: Math.min(Math.max(max + 2, 8), limit) }
+  })
+}
+
 function buildOrderRows(orders) {
   const rows = []
   ;(orders || []).forEach(order => {
@@ -81,12 +104,7 @@ function buildOrderExport(orders) {
       if (cell) cell.s = centerStyle
     })
   }
-  sheet['!cols'] = [
-    { wch: 20 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 18 },
-    { wch: 28 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 },
-    { wch: 10 }, { wch: 14 }, { wch: 24 }, { wch: 16 }, { wch: 8 },
-    { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 24 }
-  ]
+  sheet['!cols'] = buildColumnWidths(sheet, rows, XLSX)
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, sheet, '订单明细')
   const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx', cellStyles: true })
