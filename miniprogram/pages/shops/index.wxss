@@ -1,0 +1,141 @@
+.shops-page {
+  padding: 36rpx 32rpx 80rpx;
+}
+
+.head {
+  padding: 8rpx 4rpx 26rpx;
+}
+
+.head-title {
+  font-size: 44rpx;
+  font-weight: 600;
+  letter-spacing: 2rpx;
+}
+
+.add-btn {
+  margin-bottom: 22rpx;
+  height: 78rpx;
+  border-radius: 39rpx;
+  border: 1rpx dashed #cbbfa9;
+  background: #fffdf8;
+  color: var(--green);
+  font-size: 26rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.form-card {
+  padding: 10rpx 28rpx 24rpx;
+  margin-bottom: 24rpx;
+}
+
+.form-title {
+  padding: 18rpx 0 8rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.form-actions {
+  display: flex;
+  gap: 20rpx;
+  margin-top: 24rpx;
+}
+
+.form-actions .btn {
+  flex: 1;
+  height: 80rpx;
+}
+
+.address {
+  min-height: 90rpx;
+  line-height: 1.6;
+}
+
+.shop-card {
+  margin-bottom: 20rpx;
+  padding: 24rpx;
+  border: 1rpx solid var(--line);
+  border-radius: 20rpx;
+  background: var(--card);
+}
+
+.shop-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.shop-name {
+  flex: 1;
+  font-size: 30rpx;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.shop-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  flex: 0 0 auto;
+}
+
+.shop-tag {
+  padding: 2rpx 12rpx;
+  border-radius: 8rpx;
+  font-size: 19rpx;
+  line-height: 34rpx;
+}
+
+.shop-tag.default {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.shop-tag.active {
+  background: #fbeee8;
+  color: var(--accent);
+}
+
+.shop-address {
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  word-break: break-all;
+}
+
+.shop-contact {
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: var(--muted);
+}
+
+.shop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin-top: 18rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx dashed var(--line);
+}
+
+.shop-action {
+  padding: 6rpx 18rpx;
+  border-radius: 22rpx;
+  border: 1rpx solid var(--line);
+  color: var(--ink-soft);
+  font-size: 21rpx;
+  line-height: 1.4;
+}
+
+.shop-action.primary {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.shop-action.danger {
+  border-color: #e3c9c1;
+  color: var(--accent);
+}

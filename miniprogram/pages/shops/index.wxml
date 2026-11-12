@@ -1,0 +1,88 @@
+<view class="page shops-page">
+  <view class="head">
+    <view class="head-title">店铺管理</view>
+  </view>
+
+  <view wx:if="{{!formVisible}}" class="add-btn" bindtap="startAdd">+ 新增店铺</view>
+
+  <view wx:if="{{formVisible}}" class="card form-card">
+    <view class="form-title">{{form.shopId ? '编辑店铺' : '新增店铺'}}</view>
+    <view class="field">
+      <view class="field-label required">店铺名称</view>
+      <input
+        class="field-input"
+        maxlength="50"
+        placeholder="请输入店铺名称"
+        placeholder-class="field-placeholder"
+        value="{{form.shopName}}"
+        data-field="shopName"
+        bindinput="onInput"
+      />
+    </view>
+    <view class="field">
+      <view class="field-label required">收货地址</view>
+      <textarea
+        class="field-input address"
+        maxlength="200"
+        auto-height
+        placeholder="请输入详细收货地址"
+        placeholder-class="field-placeholder"
+        value="{{form.address}}"
+        data-field="address"
+        bindinput="onInput"
+      />
+    </view>
+    <view class="field">
+      <view class="field-label">联系人</view>
+      <input
+        class="field-input"
+        maxlength="20"
+        placeholder="选填"
+        placeholder-class="field-placeholder"
+        value="{{form.contactName}}"
+        data-field="contactName"
+        bindinput="onInput"
+      />
+    </view>
+    <view class="field">
+      <view class="field-label">联系电话</view>
+      <input
+        class="field-input"
+        maxlength="20"
+        placeholder="选填"
+        placeholder-class="field-placeholder"
+        value="{{form.phone}}"
+        data-field="phone"
+        bindinput="onInput"
+      />
+    </view>
+    <view class="form-actions">
+      <button class="btn btn-ghost" bindtap="cancelForm">取消</button>
+      <button class="btn btn-primary" loading="{{saving}}" disabled="{{saving}}" bindtap="save">保存</button>
+    </view>
+  </view>
+
+  <view class="list" wx:if="{{shops.length}}">
+    <view class="shop-card" wx:for="{{shops}}" wx:key="_id">
+      <view class="shop-top">
+        <view class="shop-name">{{item.shopName}}</view>
+        <view class="shop-tags">
+          <text class="shop-tag default" wx:if="{{item.isDefault}}">默认</text>
+          <text class="shop-tag active" wx:if="{{item._id === activeShopId}}">当前使用</text>
+        </view>
+      </view>
+      <view class="shop-address">{{item.address}}</view>
+      <view class="shop-contact" wx:if="{{item.contactName || item.phone}}">
+        {{item.contactName || '—'}}{{item.phone ? ' · ' + item.phone : ''}}
+      </view>
+      <view class="shop-actions">
+        <view class="shop-action primary" wx:if="{{item._id !== activeShopId}}" data-id="{{item._id}}" bindtap="useShop">使用</view>
+        <view class="shop-action" wx:if="{{!item.isDefault}}" data-id="{{item._id}}" bindtap="setDefault">设为默认</view>
+        <view class="shop-action" data-id="{{item._id}}" bindtap="editShop">编辑</view>
+        <view class="shop-action danger" wx:if="{{shops.length > 1}}" data-id="{{item._id}}" bindtap="removeShop">删除</view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:elif="{{loading}}" class="state">正在加载…</view>
+</view>
