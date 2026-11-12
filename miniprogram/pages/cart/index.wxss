@@ -18,6 +18,49 @@
   color: var(--muted);
 }
 
+.shop-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 20rpx;
+}
+
+.shop-picker {
+  display: inline-block;
+  max-width: 560rpx;
+}
+
+.shop-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 560rpx;
+  box-sizing: border-box;
+  padding: 10rpx 22rpx;
+  border-radius: 28rpx;
+  background: var(--card);
+  border: 1rpx solid var(--line);
+  color: var(--ink-soft);
+  font-size: 23rpx;
+  line-height: 1.4;
+}
+
+.shop-pill-label,
+.shop-pill-arrow {
+  flex: 0 0 auto;
+}
+
+.shop-pill-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.shop-pill-arrow {
+  padding-left: 8rpx;
+}
+
 .cart-item {
   display: flex;
   align-items: center;
@@ -97,6 +140,13 @@
   line-height: 1.4;
   color: var(--muted);
   text-decoration: underline;
+}
+
+.item-spec {
+  margin-top: 4rpx;
+  font-size: 21rpx;
+  line-height: 1.4;
+  color: var(--muted);
 }
 
 .off-sale {
@@ -223,6 +273,23 @@
 .state-btn {
   margin: 36rpx auto 0;
   width: 260rpx;
+}
+
+.no-shop-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 140rpx 48rpx 0;
+}
+
+.no-shop-state .state-btn {
+  width: 300rpx;
+}
+
+.no-shop-state .state-btn .btn {
+  width: 100%;
 }
 
 .role-state {

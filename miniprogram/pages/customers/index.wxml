@@ -54,12 +54,16 @@
             {{item.name || '未填写'}}
             <text class="status {{item.enabled ? 'on' : 'off'}}">{{item.enabled ? '正常' : '停用'}}</text>
           </view>
-          <view class="customer-sub">{{item.shopName || '未填写店铺'}} · {{item.phone || '—'}}</view>
+          <view class="customer-sub">{{item.phone || '—'}}</view>
         </view>
-        <view wx:if="{{item.enabled}}" class="assist-btn" data-id="{{item.userId}}" catchtap="goAssist">帮下单</view>
-        <view wx:else class="assist-btn disabled">已停用</view>
+        <view wx:if="{{item.enabled && item.shops.length}}" class="assist-btn" data-id="{{item.userId}}" catchtap="goAssist">帮下单</view>
+        <view wx:elif="{{!item.enabled}}" class="assist-btn disabled">已停用</view>
+        <view wx:else class="assist-btn disabled">无店铺</view>
       </view>
 
+      <view class="customer-shops" wx:if="{{item.shops.length}}">
+        <text class="shop-chip" wx:for="{{item.shops}}" wx:for-item="shop" wx:key="_id">{{shop.shopName}}</text>
+      </view>
       <view class="customer-address" wx:if="{{item.address}}">{{item.address}}</view>
 
       <view class="stat-row">

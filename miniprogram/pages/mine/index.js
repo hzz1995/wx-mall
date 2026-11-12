@@ -7,6 +7,7 @@ const {
   requireLogin
 } = require('../../utils/session')
 const { syncCartBadge } = require('../../utils/cart')
+const { getShops, saveShops, getActiveShop, clearShopCache } = require('../../utils/shop')
 
 const TYPE_TEXT = { KH: '客户', XS: '销售', YY: '运营', GLY: '管理员' }
 
@@ -17,6 +18,8 @@ Page({
     salesName: '',
     serviceWechat: '',
     typeText: '',
+    shopName: '',
+    shopCount: 0,
     initial: '店'
   },
 
@@ -33,7 +36,17 @@ Page({
     }
     const cached = getUser()
     if (cached) this.applyUser(cached, this.data.salesName)
+    this.applyShop()
     this.load()
+  },
+
+  applyShop() {
+    const shops = getShops()
+    const active = getActiveShop()
+    this.setData({
+      shopName: active ? active.shopName : '',
+      shopCount: shops.length
+    })
   },
 
   applyUser(user, salesName) {
@@ -54,6 +67,10 @@ Page({
       const user = meData.user
       updateUser(user)
       this.applyUser(user, meData.salesName)
+      if (Array.isArray(meData.shops)) {
+        saveShops(meData.shops)
+        this.applyShop()
+      }
       this.setData({
         serviceWechat: (settingsData.settings && settingsData.settings.serviceWechat) || ''
       })
@@ -78,6 +95,10 @@ Page({
     wx.navigateTo({ url: '/pages/orders/index?mine=1' })
   },
 
+  goShops() {
+    wx.navigateTo({ url: '/pages/shops/index' })
+  },
+
   goProfile() {
     wx.navigateTo({ url: '/pages/profile/index' })
   },
@@ -100,6 +121,7 @@ Page({
       content: '退出后需要重新输入密码，确认退出？',
       success: res => {
         if (!res.confirm) return
+        clearShopCache()
         clearSession()
         syncCartBadge(0)
         wx.reLaunch({ url: '/pages/login/index' })

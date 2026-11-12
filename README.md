@@ -13,15 +13,16 @@
 - 加购弹窗：可直接输入或加减数量，一次加入多件
 - 商品详情底部提供购物车快捷入口和数量角标
 - 购物车：勾选、改数量、移除、全选、批量结算
+- 多店铺：一个客户可维护多个店铺；商品页/购物车可切换当前店铺，购物车按店铺隔离，结算使用当前店铺的收货地址；订单保存店铺快照
 - 客户可售范围：后台可为客户绑定分类；未绑定则看到全部分类商品，绑定后仅看到这些分类下的商品
 - 下单：多商品订单、收货地址、备注，无需在线支付；客户 `KH` 和销售 `XS` 可加购和下单
 - 我的：个人资料、修改密码；`KH` 显示“我的订单”，销售显示“我的客户 / 我的订单 / 客户订单”，管理员显示“客户订单”
 - 我的订单：服务端分页，每页 10 条，滚动加载；客户可取消状态为“已完成”的订单，取消后回滚商品销量；支持“再来一单”，可修改数量后重新提交
-- 客户订单：销售查看自己客户的订单，管理员查看全部订单；支持客户下拉筛选、今天/昨天/最近一周和月份选择（最近 12 个月）；管理员可按销售筛选并显示所属销售；支持勾选订单后导出 Excel
+- 客户订单：销售查看自己客户的订单，管理员查看全部订单；支持客户下拉筛选、店铺筛选、今天/昨天/最近一周和月份选择（最近 12 个月）；管理员可按销售筛选并显示所属销售；支持勾选订单后导出 Excel
 - 订单状态：`DONE` 已完成（默认，客户可取消）、`CLOSED` 已关闭（管理员关闭，订单结束，不再允许取消）、`CANCELLED` 已取消（回滚销量）
 - 销售演示：销售账号可正常加购、下单；演示订单标记 `isDemo`，不计入商品销量、数据报表、客户统计和销售业绩，销售可在“我的订单”中查看
-- 我的客户（销售）：客户搜索、本月已下单/未下单筛选、客户数/本月交易额/本月下单次数统计，客户卡片显示当月交易额、当月下单数、较上月变化，并提供“帮下单”入口
-- 帮下单：销售可为自己的客户加入购物车或直接创建订单，商品范围按该客户的分类绑定校验；订单记录来源为“客户自建”或“销售帮下单”
+- 我的客户（销售）：客户搜索、本月已下单/未下单筛选、客户数/本月交易额/本月下单次数统计，客户卡片显示名下多个店铺、当月交易额、当月下单数、较上月变化，并提供“帮下单”入口
+- 帮下单：销售可为自己的客户选择店铺后加入购物车或直接创建订单，商品范围按该客户的分类绑定校验；订单记录来源为“客户自建”或“销售帮下单”
 - 小程序码：可打开全部商品页或指定商品
 
 店主侧（Web 管理后台）：
@@ -29,13 +30,16 @@
 - 手机号 + 密码登录；首次部署初始化管理员
 - 管理员、运营与销售均可登录后台；销售只能查看自己关联客户的数据，并可在客户菜单新建自己的客户
 - 用户管理：客户（KH）/ 销售（XS）/ 运营（YY）/ 管理员（GLY）
-  - 客户类型必须填写门店名称、收货地址，并指定负责销售
+  - 客户类型必须创建首个店铺并填写收货地址，同时指定负责销售；后续可在店铺管理中增加多个店铺
   - 可为客户绑定可售分类；不绑定表示可查看全部分类商品
   - 支持停用账号、修改密码（自定义新密码）、重置密码（默认重置为 `123456`）
-- 订单管理：按状态（已完成/已关闭/已取消）、订单类型（正式/演示/全部，默认正式）、销售、关键词筛选，列表显示负责销售和订单来源；管理员可关闭订单（订单结束、保留销量）或取消订单（回滚销量），支持勾选订单后导出 Excel
+  - 删除用户/客户为逻辑删除，需二次确认：账号从列表隐藏并禁止登录，历史订单保留；客户的店铺和购物车会清理，销售名下客户会解除分配
+- 订单管理：按状态（已完成/已关闭/已取消）、订单类型（正式/演示/全部，默认正式）、销售、店铺、关键词筛选，列表显示负责销售和订单来源；管理员可关闭订单（订单结束、保留销量）、取消订单（回滚销量）或删除订单（二次确认，删除前未取消的正式订单会回滚销量），支持勾选订单后导出 Excel
 - 购物车管理：按客户、销售、关键词查看购物车明细、数量和金额（销售仅自己客户）
 - 商品管理：多图 + 视频、规格型号、有效期至、生产日期、产地、初始化已售数量、上下架、多分类、排序、删除；支持服务端分页、搜索和分类筛选
-- 批量操作：勾选商品后可批量上架、批量下架；批量修改支持选择属性（状态/售价/原价/有效期至/生产日期/产地/规格型号/排序），在列表中逐个商品填写不同值后保存，操作写入日志
+- 批量操作：勾选商品后可批量上架、批量下架；批量修改支持选择属性（状态/售价/原价/有效期至/生产日期/产地/规格型号/排序/商品图片），在列表中逐个商品填写或上传不同值后保存，操作写入日志
+- 商品图片支持一次选择多张并并发上传（最多 4 张）；批量修改中可为每个选中商品独立上传最多 4 张图片
+- 商品导入：支持 Excel/CSV，优先按「商品编码」匹配已有商品；编码不存在但名称唯一匹配无编码商品时补写编码，否则新增商品（必须有名称、售价）。新商品可选择默认分类，不选择时先作为“未分类”。导入先解析文件并统计行数，确认后按每批 10 条导入，每处理 100 条暂停 3 秒，单批失败自动重试 3 次，全部完成后再提示结果；支持 2000 行，适合云函数 3 秒超时环境
 - 分类管理
 - 客户汇总：按客户账号统计订单数、累计消费、最近下单、负责销售；管理员可按销售筛选；管理员和销售都可以新建客户
 - 数据报表：商品采购最多/最少、客户下单最多/最少、销售业绩排行（仅管理员）
@@ -59,7 +63,7 @@
 
 - 小程序：原生 WXML / WXSS / JavaScript
 - 后端：微信云开发云函数（Node.js），单函数统一入口
-- 数据库：users / categories / products / carts / orders / settings
+- 数据库：users / shops / categories / products / carts / orders / settings
 - 图片与视频：云存储
 - 管理后台：Vue 3 + Vite + Element Plus，Hash 路由
 
@@ -122,7 +126,7 @@ module.exports = {
 ### 3. 部署云函数
 
 1. 首次部署前，右键 `cloudfunctions` 目录 → **选择云环境**，选中与环境 ID 对应的环境（例如 `cloud1-xxx`）。如果菜单里没有该项，先点开发者工具顶部「云开发」打开控制台。
-2. 右键 `cloudfunctions/api` → **上传并部署：云端安装依赖**。Excel 导出依赖 `xlsx`，必须使用“云端安装依赖”方式部署。
+2. 右键 `cloudfunctions/api` → **上传并部署：云端安装依赖**。Excel 导出依赖 `xlsx-js-style`（支持单元格居中样式），必须使用“云端安装依赖”方式部署。
 3. 云函数运行环境选择 Node.js 16.13 或更高版本。
 4. 在云开发控制台 → 云函数 → `api` → 配置：
    - **超时时间：60 秒**（视频上传需要）
@@ -139,22 +143,26 @@ module.exports = {
 | 集合 | 用途 | 权限建议 |
 |---|---|---|
 | `users` | 用户账号（客户/销售/运营/管理员） | 所有用户不可读写 |
+| `shops` | 客户店铺与收货地址（一个客户多个店铺） | 所有用户不可读写 |
 | `categories` | 商品分类 | 所有用户不可读写 |
 | `products` | 商品（含图片、视频） | 所有用户不可读写 |
-| `carts` | 购物车（每个用户一条文档） | 所有用户不可读写 |
+| `carts` | 购物车（客户 + 店铺一条文档） | 所有用户不可读写 |
 | `orders` | 订单 | 所有用户不可读写 |
 | `settings` | 店铺设置（文档 ID `shop`） | 所有用户不可读写 |
 | `audit_logs` | 操作日志（商品/分类增删改） | 所有用户不可读写 |
 
-客户端不直接访问数据库，所有读写都经过云函数，因此七个集合都设为最严格的“所有用户不可读写”。云函数首次写日志时会尝试自动创建 `audit_logs`，也可以提前手动创建。
+客户端不直接访问数据库，所有读写都经过云函数，因此八个集合都设为最严格的“所有用户不可读写”。云函数首次写日志时会尝试自动创建 `audit_logs`，也可以提前手动创建。
 
 建议索引：
 
 - `users`：`phone` 唯一索引（登录、手机号唯一性）
+- `shops`：`userId` 升序（客户店铺列表）
 - `orders`：`userId` 升序 + `createdAt` 降序（我的订单）
 - `orders`：`salesId` 升序 + `createdAt` 降序（销售客户订单）
+- `orders`：`shopId` 升序 + `createdAt` 降序（按店铺筛选）
 - `orders`：`status` 升序 + `createdAt` 降序（后台筛选）
 - `products`：`code` 唯一索引（小程序码短码）
+- `products`：`productCode` 普通索引（后台商品编码搜索和导入匹配）
 - `products`：`status` 升序 + `sort` 升序 + `createdAt` 降序（商品列表默认排序）
 - `products`：`status` 升序 + `categoryId` 升序 + `sort` 升序 + `createdAt` 降序（分类筛选）
 - `products`：`status` 升序 + `sales` 降序 + `createdAt` 降序（销量排序）
@@ -165,6 +173,16 @@ module.exports = {
 - `audit_logs`：`operatorId` 升序 + `createdAt` 降序（按操作人筛选）
 
 `settings` 文档无需手动创建，首次保存店铺设置时会自动写入。
+
+### 多店铺改造后的测试数据重置
+
+本次改为 `shops` 表管理客户店铺，订单和购物车按店铺隔离，不再兼容旧的 `users.shopName/address`。测试阶段建议：
+
+1. 云开发控制台 → 数据库 → `orders` → **清空记录**；
+2. `carts` → **清空记录**；
+3. 确认已创建 `shops` 集合；
+4. 给每个客户创建至少一个店铺（后台用户/客户页的“店铺”按钮，或小程序“店铺管理”）；
+5. 旧 `users.shopName/address` 字段可以保留，但不会再被读取，也可以手动删除。
 
 ### 5. 开启云函数 HTTP 访问服务
 
@@ -246,16 +264,16 @@ npm run build
 
 | 类型 | 标识 | 小程序 | 管理后台 |
 |---|---|---|---|
-| 客户 | `KH` | 浏览、购物车、下单、查自己的订单、取消已完成订单 | 无 |
-| 销售 | `XS` | 可浏览、加购、下单（演示订单不计统计），查看我的订单和自己客户的订单 | 可登录；查看自己客户的订单、客户汇总、购物车；可在客户菜单新建自己的客户 |
+| 客户 | `KH` | 浏览、购物车、下单、店铺管理、查自己的订单、取消已完成订单 | 无 |
+| 销售 | `XS` | 可浏览、加购、下单（演示订单不计统计），查看我的订单和名下客户多店铺的订单 | 可登录；查看自己客户的订单、客户汇总（含多店铺）、购物车；可在客户菜单新建自己的客户 |
 | 运营 | `YY` | 可浏览，不能加购/下单 | 可登录；商品新增、编辑、删除和分类管理，操作写入日志 |
-| 管理员 | `GLY` | 可浏览，查看全部客户订单，不能加购/下单 | 全部管理功能，可关闭或取消订单 |
+| 管理员 | `GLY` | 可浏览，查看全部客户订单，不能加购/下单 | 全部管理功能，可管理客户店铺、关闭或取消订单 |
 
 - 密码使用 `scrypt` 加盐哈希存储，不保存明文。
 - 小程序令牌有效期 30 天，管理后台令牌有效期 12 小时。
 - 每个请求都会回查用户是否被停用；停用后旧令牌立即失效。
-- 客户下单时会把 `userId`、姓名、手机号、店铺名称、地址、负责销售快照写入订单，方便后续追溯。
-- 客户类型创建/编辑时必须填写门店名称、收货地址，并选择一个销售账号作为负责销售。
+- 客户下单时会把 `userId`、姓名、手机号、`shopId`、店铺名称、地址、负责销售快照写入订单，方便后续追溯。
+- 客户类型创建时必须填写首个店铺并选择一个销售账号作为负责销售；一个客户可以有多个店铺，订单和购物车按店铺隔离。
 - 客户和销售可以加入购物车、下单；客户可取消自己状态为“已完成”的订单，管理员可关闭或取消订单；销售演示订单不计入商品销量、报表和客户统计，管理员只可浏览、不参与购物。
 - 订单状态：`DONE` 已完成（默认）、`CLOSED` 已关闭（管理员结束订单，保留销量，客户不能取消）、`CANCELLED` 已取消（回滚销量）；关闭和取消均以快照记录时间。
 - 演示订单（`isDemo: true`）不会增加商品销量，取消时也不回滚；报表、客户汇总、销售业绩和“我的客户”统计均会排除演示订单。
@@ -297,8 +315,6 @@ node scripts/hash-password.js 你的密码
   "phone": "13800000000",
   "name": "店主",
   "type": "GLY",
-  "shopName": "",
-  "address": "",
   "salesId": "",
   "enabled": true,
   "passwordSalt": "脚本输出的值",
@@ -315,8 +331,6 @@ node scripts/hash-password.js 你的密码
   "phone": "13900000000",
   "name": "李销售",
   "type": "XS",
-  "shopName": "",
-  "address": "",
   "salesId": "",
   "enabled": true,
   "passwordSalt": "脚本输出的值",
@@ -333,12 +347,26 @@ node scripts/hash-password.js 你的密码
   "phone": "13700000000",
   "name": "张三",
   "type": "KH",
-  "shopName": "张三便利店",
-  "address": "上海市静安区南京西路 100 号",
   "salesId": "销售账号的_id",
   "enabled": true,
   "passwordSalt": "脚本输出的值",
   "passwordHash": "脚本输出的值",
+  "createdAt": 1790000000000,
+  "updatedAt": 1790000000000
+}
+```
+
+客户创建后，还需在 `shops` 集合插入至少一个店铺（`userId` 填客户 `_id`）：
+
+```json
+{
+  "userId": "客户账号的_id",
+  "shopName": "张三便利店",
+  "address": "上海市静安区南京西路 100 号",
+  "contactName": "张三",
+  "phone": "13700000000",
+  "isDefault": true,
+  "enabled": true,
   "createdAt": 1790000000000,
   "updatedAt": 1790000000000
 }
@@ -351,7 +379,7 @@ node scripts/hash-password.js 你的密码
 - `type` 必须是 `KH`、`XS`、`YY`、`GLY` 之一
 - `enabled` 必须是布尔值 `true`
 - `salesId` 只能指向类型为 `XS` 的用户 `_id`
-- 客户类型必须填写 `shopName`、`address` 和 `salesId`，否则后台编辑时无法通过校验
+- 客户类型必须填写 `salesId`，并至少维护一个 `shops` 店铺，否则无法下单
 - `categoryIds` 可选，最多绑定 100 个分类；留空表示查看全部分类商品
 - 手动创建 GLY 后，后台初始化接口会认为管理员已存在，只能直接登录
 
@@ -364,18 +392,22 @@ node scripts/hash-password.js 你的密码
   "_id": "...",
   "phone": "13800138000",
   "name": "张三",
-  "shopName": "张三便利店",
-  "address": "上海市……",
   "salesId": "销售用户的 _id",
   "categoryIds": ["分类 _id", "分类 _id"],
   "type": "KH",
   "enabled": true,
+  "deleted": false,
+  "shopCount": 2,
   "passwordSalt": "...",
   "passwordHash": "...",
   "createdAt": "...",
   "updatedAt": "..."
 }
 ```
+
+客户的店铺和收货地址存放在 `shops` 表，一个客户可以有多个店铺；用户列表/登录接口会一并返回 `shops` 和默认店铺。旧版本遗留的 `users.shopName/address` 字段已不再读取。
+
+PC 端删除用户为**逻辑删除**：写入 `deleted: true`、`enabled: false`，释放原手机号并清空密码；账号从列表隐藏且不能登录，但订单中的 `userId` 和历史快照保留。删除客户时会物理清理其店铺和购物车；删除销售时会解除其名下客户的销售分配。
 
 `categoryIds` 为客户的可售分类绑定：
 
@@ -384,12 +416,35 @@ node scripts/hash-password.js 你的密码
 - 仅 `KH` 使用该字段；销售、运营和管理员不受分类绑定限制。
 - 该设计避免按商品 ID 绑定大量商品，分类数量通常远小于商品数量。
 
+### shops
+
+```json
+{
+  "_id": "店铺ID",
+  "userId": "客户用户ID",
+  "shopName": "张三便利店",
+  "address": "上海市……",
+  "contactName": "张三",
+  "phone": "13800138000",
+  "isDefault": true,
+  "enabled": true,
+  "createdAt": "...",
+  "updatedAt": "..."
+}
+```
+
+- 一个客户最多维护 20 个店铺，至少保留一个店铺。
+- 下单、购物车、订单都按店铺区分；订单会快照 `shopId`、`shopName`、`address`。
+- 销售按客户维度查看名下客户的所有店铺，可在订单和帮下单时选择具体店铺。
+
 ### products
 
 ```json
 {
   "_id": "...",
   "name": "手冲咖啡豆 250g",
+  "productCode": "A001",
+  "unit": "袋",
   "categoryId": "主分类 _id",
   "categoryIds": ["分类 _id", "分类 _id"],
   "price": 6800,
@@ -411,22 +466,25 @@ node scripts/hash-password.js 你的密码
 }
 ```
 
-价格以**分**为单位存储。`code` 是 8 位短码，用于小程序码 `scene`（上限 32 字符）。
+价格以**分**为单位存储。`code` 是系统生成的 8 位短码，用于小程序码 `scene`；`productCode` 是后台维护的商品编码，用于导入匹配和搜索；`unit` 是商品单位（袋、盒、箱等）。`productCode` 非空时保持唯一。
 
 `initialSales` 是后台填写的初始化已售数量，`sales` 是展示用的总已售数量，等于初始化数量加实际订单销量。后续下单会继续增加 `sales`，取消订单会回减实际订单部分；修改初始化数量时后端会按差值原子调整 `sales`。
 
-### carts（文档 ID 即用户 ID）
+### carts（文档 ID 为 `用户ID_店铺ID`）
 
 ```json
 {
-  "_id": "用户ID",
+  "_id": "用户ID_店铺ID",
   "userId": "用户ID",
+  "shopId": "店铺ID",
   "items": [
     { "productId": "...", "quantity": 2, "checked": true, "addedAt": "..." }
   ],
   "updatedAt": "..."
 }
 ```
+
+客户购物车按店铺隔离；销售演示账号使用 `shopId = demo` 的购物车。购物车只存商品 ID 和数量，商品名称、价格、规格、上下架状态每次进入购物车或刷新时都从 `products` 表实时读取；订单在创建时再保存价格和规格快照。
 
 ### orders
 
@@ -437,11 +495,12 @@ node scripts/hash-password.js 你的密码
   "userId": "用户ID",
   "openid": "微信openid（审计用）",
   "items": [
-    { "productId": "...", "name": "手冲咖啡豆 250g", "price": 6800, "quantity": 2, "image": "cloud://..." }
+    { "productId": "...", "productCode": "A001", "name": "手冲咖啡豆 250g", "spec": "500g/袋", "price": 6800, "quantity": 2, "image": "cloud://..." }
   ],
   "totalAmount": 13600,
   "customerName": "张三",
   "phone": "13800138000",
+  "shopId": "店铺ID",
   "shopName": "张三便利店",
   "address": "上海市……",
   "salesId": "销售用户ID",
@@ -519,25 +578,34 @@ node scripts/hash-password.js 你的密码
 | GET | `/me` | 当前登录用户 |
 | GET | `/users?type=&keyword=&page=&pageSize=` | 用户列表（GLY） |
 | GET | `/users/sales` | 启用中的销售列表（GLY） |
-| POST | `/users` | 新增用户（GLY；KH 必填门店、地址、负责销售，可选 `categoryIds`） |
+| POST | `/users` | 新增用户（GLY；KH 必填首个店铺名称/地址、负责销售，可选 `categoryIds`） |
 | PUT | `/users/:id` | 修改用户/分配销售/停用/绑定可售分类（GLY） |
+| GET | `/users/:id/shops` | 客户店铺列表（GLY） |
+| POST | `/users/:id/shops` | 新增客户店铺（GLY） |
+| PUT | `/users/:id/shops/:shopId` | 编辑客户店铺（GLY） |
+| DELETE | `/users/:id/shops/:shopId` | 删除客户店铺（GLY，至少保留一个） |
+| POST | `/users/:id/shops/:shopId/default` | 设置默认店铺（GLY） |
 | POST | `/users/:id/password` | 修改/重置用户密码（GLY；传 `password` 则使用指定密码，未传默认 `123456`） |
+| DELETE | `/users/:id` | 逻辑删除用户（GLY；不能删除自己；账号隐藏并禁止登录，订单保留；客户的店铺/购物车清理，销售名下客户解除分配） |
 | POST | `/me/password` | 修改当前登录账号密码（GLY / XS / YY；需原密码，返回新 token） |
-| GET | `/orders?status=&orderType=&salesId=&keyword=&page=&pageSize=` | 订单列表（XS 自动按自己过滤；`orderType` 取 `normal`/`demo`/`all`，默认 `normal`，PC 端默认不展示销售演示订单） |
-| GET | `/orders/export?ids=` | 按勾选订单 ID 导出 Excel（XS 自动校验自己的订单，最多 100 单） |
+| GET | `/orders?status=&orderType=&salesId=&shopId=&keyword=&page=&pageSize=` | 订单列表（XS 自动按自己过滤；`orderType` 取 `normal`/`demo`/`all`，默认 `normal`，PC 端默认不展示销售演示订单） |
+| GET | `/orders/export?ids=` | 按勾选订单 ID 导出 Excel（XS 自动校验自己的订单，最多 100 单；明细包含商品编码、商品名称、规格、数量、单价等） |
 | GET | `/orders/:id` | 订单详情（XS 只能看自己的订单） |
 | PATCH | `/orders/:id` | 修改订单状态（GLY；body `{"status":"CLOSED"}` 关闭订单、`"CANCELLED"` 取消并回滚销量） |
-| GET | `/carts?keyword=&salesId=&page=&pageSize=` | 客户购物车列表（XS 自动过滤，GLY 可按销售筛选） |
+| DELETE | `/orders/:id` | 删除订单（GLY；二次确认后前端调用；未取消的正式订单会回滚销量） |
+| GET | `/carts?keyword=&salesId=&page=&pageSize=` | 客户购物车列表（按客户+店铺展示，XS 自动过滤，GLY 可按销售筛选） |
+| GET | `/shops?keyword=` | 店铺列表（XS 只返回自己客户的店铺，GLY 返回全部；用于订单/报表筛选） |
 | GET | `/products?page=&pageSize=&keyword=&categoryId=&ids=&simple=` | 商品分页列表（GLY / YY；`ids` 用于批量回显，最多 100 个；`simple=1` 跳过临时地址生成，供选择器使用） |
 | POST | `/products` | 新增商品（GLY） |
 | PUT | `/products/:id` | 更新商品（GLY / YY） |
 | DELETE | `/products/:id` | 删除商品（GLY） |
 | POST | `/products/batch` | 批量修改商品（GLY / YY；最多 100 件；支持 `field` + `updates:[{id,value}]` 逐商品更新，或 `ids` + `value` 统一更新） |
+| POST | `/products/import` | 商品导入（GLY / YY；`metaOnly` 统计行数和重复编码；`rowOffset` + `rowLimit` 分批导入，`defaultCategoryId` 可选；按商品编码匹配，不存在则新增，空字段不更新，最多 2000 行） |
 | GET | `/categories` | 分类列表（GLY / YY） |
 | POST / PUT / DELETE | `/categories`、`/categories/:id` | 分类维护（GLY / YY） |
 | GET | `/customers?salesId=` | 客户汇总（XS 自动按自己过滤，GLY 可按销售筛选） |
 | POST | `/customers` | 新建客户（GLY / XS；类型固定 `KH`，XS 的负责销售强制为自己） |
-| GET | `/reports?start=&end=&salesId=&shopName=` | 数据报表（GLY；start/end 为毫秒时间戳，默认今天，跨度最多一年；支持按销售、店铺过滤） |
+| GET | `/reports?start=&end=&salesId=&shopId=&shopName=` | 数据报表（GLY；start/end 为毫秒时间戳，默认今天，跨度最多一年；支持按销售、店铺过滤） |
 | GET | `/audit-logs?page=&pageSize=&action=&keyword=&resource=&resourceId=&start=&end=` | 操作日志（GLY；支持操作类型、商品/分类名称、资源和 ID 筛选；默认最近 7 天，最长 14 天） |
 | GET / PUT | `/settings` | 店铺设置（GLY） |
 | POST | `/upload` | 上传图片（二进制，GLY / YY） |
@@ -548,17 +616,20 @@ node scripts/hash-password.js 你的密码
 小程序端 `action`：
 
 - 公开：`login`、`getSettings`、`ping`
-- 需登录：`getHome`、`getCatalog`、`listProducts`、`getProduct`、`me`、`updateProfile`、`changePassword`、`getCart`、`addToCart`、`updateCartItem`、`setCartCheckedAll`、`removeCartItem`、`getCheckoutPreview`、`createOrder`、`listMyOrders`、`listStaffOrders`、`exportStaffOrders`、`listSalesOptions`、`listCustomerOptions`、`listMyCustomers`、`getAssistCustomer`、`assistAddToCart`、`assistCreateOrder`、`getMyOrder`、`cancelMyOrder`
-- `getHome`：首页聚合接口，一次返回店铺信息、分类和首页 10 个商品，减少首屏云调用次数
+- 需登录：`getHome`、`getCatalog`、`listProducts`、`getProduct`、`me`、`listMyShops`、`createShop`、`updateShop`、`deleteShop`、`setDefaultShop`、`updateProfile`、`changePassword`、`getCart`、`addToCart`、`updateCartItem`、`setCartCheckedAll`、`removeCartItem`、`getCheckoutPreview`、`createOrder`、`listMyOrders`、`listStaffOrders`、`exportStaffOrders`、`listSalesOptions`、`listCustomerOptions`、`listCustomerShops`、`listMyCustomers`、`getAssistCustomer`、`assistAddToCart`、`assistCreateOrder`、`getMyOrder`、`cancelMyOrder`
+- `getHome`：首页聚合接口，一次返回店铺信息、分类、首页 10 个商品以及客户店铺列表，减少首屏云调用次数
+- 店铺接口：`listMyShops`、`createShop`、`updateShop`、`deleteShop`、`setDefaultShop` 仅客户 `KH` 可用；一个客户最多 20 个店铺，至少保留一个
+- 购物车接口 `getCart`、`addToCart`、`updateCartItem`、`setCartCheckedAll`、`removeCartItem` 需要传 `shopId`（客户），销售演示订单不传，使用 `demo` 购物车；结算、下单同样需要 `shopId`
 - `getCatalog` 默认返回店铺信息、分类和全部商品；传 `includeProducts: false` 时只返回店铺信息和分类，供商品页首屏使用
 - `listProducts` 参数：`page`、`categoryId`、`keyword`、`sort`；小程序只按商品名称搜索，`sort` 当前固定默认排序；固定每页 10 条，返回 `list` 和 `hasMore`，不查询总数
-- `listMyOrders` 参数：`page`、`pageSize`（默认和前端均为 10），返回 `list` 和 `hasMore`，不查询总数；`KH` 查自己的订单，`XS` 查自己的演示订单
+- `listMyOrders` 参数：`page`、`pageSize`、`shopId`（可选，按店铺筛选），返回 `list` 和 `hasMore`，不查询总数；`KH` 查自己的订单，`XS` 查自己的演示订单
 - `cancelMyOrder`：仅 `KH`，只能取消自己状态为 `DONE` 的订单，取消后回滚商品销量；`CLOSED` 和 `CANCELLED` 不可再取消
-- `listStaffOrders` 参数：`page`、`pageSize`、`start`、`end`、`customerId`、`salesId`；仅 `XS` / `GLY`，销售强制只查自己的订单，管理员可按销售筛选；时间跨度最多一年
-- `exportStaffOrders`：传入勾选订单 `ids` 数组导出 Excel，返回 `base64` 和文件名；销售只能导出自己的订单，最多 100 单
-- `listCustomerOptions`：`XS` 返回自己的客户，`GLY` 返回全部客户，供订单客户下拉筛选
-- `listMyCustomers`：仅 `XS`，返回当前销售名下客户的本月交易额、本月下单数、上月对比和汇总
-- `getAssistCustomer` / `assistAddToCart` / `assistCreateOrder`：仅 `XS`，只能操作自己名下客户；帮下单订单记录 `orderSource: "ASSIST"`
+- `listStaffOrders` 参数：`page`、`pageSize`、`start`、`end`、`customerId`、`shopId`、`salesId`；仅 `XS` / `GLY`，销售强制只查自己的订单，管理员可按销售筛选；时间跨度最多一年
+- `exportStaffOrders`：传入勾选订单 `ids` 数组导出 Excel，返回 `base64` 和文件名；销售只能导出自己的订单，最多 100 单；明细包含商品编码、商品名称、规格、数量、单价等
+- `listCustomerOptions`：`XS` 返回自己的客户及店铺列表，`GLY` 返回全部客户，供订单客户下拉筛选
+- `listCustomerShops`：`XS` / `GLY` 查询指定客户的店铺，供订单店铺筛选和帮下单选择
+- `listMyCustomers`：仅 `XS`，返回当前销售名下客户的本月交易额、本月下单数、上月对比、汇总和客户店铺列表
+- `getAssistCustomer` / `assistAddToCart` / `assistCreateOrder`：仅 `XS`，只能操作自己名下客户；必须传客户的 `shopId`，帮下单订单记录 `orderSource: "ASSIST"` 和店铺快照
 - `listProducts` 传入 `customerId` 时，销售帮下单会按该客户的分类绑定过滤商品
 - `listSalesOptions`：仅 `GLY`，返回启用中的销售列表，供小程序订单筛选
 - `getMyOrder`：客户只能查看自己的订单，销售可以查看自己负责的客户订单和自己的演示订单，管理员可查看全部；运营不可查看
@@ -566,7 +637,7 @@ node scripts/hash-password.js 你的密码
 
 ## 安全说明
 
-- 七个集合对客户端完全关闭，仅云函数可读写。
+- 八个集合对客户端完全关闭，仅云函数可读写。
 - 密码使用 `scrypt` 加盐哈希；登录令牌使用 HMAC-SHA256 签名。
 - 商品价格、订单金额全部在云函数中按数据库价格重新计算，不信任客户端传值。
 - 客户只能查询自己的订单（按 `userId` 校验）。
@@ -600,7 +671,7 @@ node scripts/hash-password.js 你的密码
 ## 常见问题
 
 **提示“数据库集合未创建”**
-按第 4 步创建七个集合。
+按第 4 步创建八个集合。
 
 **管理后台一直提示初始化校验码错误**
 确认云函数环境变量 `SETUP_CODE` 已保存，并重新部署云函数。

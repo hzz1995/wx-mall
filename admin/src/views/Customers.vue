@@ -42,9 +42,12 @@
           <div class="muted">{{ row.phone || '—' }}</div>
         </template>
       </el-table-column>
-      <el-table-column label="店铺 / 收货地址" min-width="240">
+      <el-table-column label="店铺 / 默认地址" min-width="240">
         <template #default="{ row }">
-          <div :class="{ muted: !row.shopName }">{{ row.shopName || '—' }}</div>
+          <div :class="{ muted: !row.shopName }">
+            {{ row.shopName || '—' }}
+            <span v-if="row.shops && row.shops.length > 1" class="muted">共 {{ row.shops.length }} 个</span>
+          </div>
           <div class="muted">{{ row.address || '未填写收货地址' }}</div>
         </template>
       </el-table-column>
@@ -71,6 +74,13 @@
           <el-tag :type="row.enabled ? 'success' : 'info'" effect="light">{{ row.enabled ? '正常' : '停用' }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="操作" width="150" fixed="right">
+        <template #default="{ row }">
+          <el-button v-if="!isSales" link type="primary" @click="openShops(row)">店铺</el-button>
+          <el-button v-if="!isSales" link type="danger" @click="removeCustomer(row)">删除</el-button>
+          <span v-if="isSales" class="muted">—</span>
+        </template>
+      </el-table-column>
     </el-table>
 
     <el-dialog v-model="dialogVisible" title="新建客户" width="560px" destroy-on-close>
@@ -84,10 +94,10 @@
         <el-form-item label="初始密码" required>
           <el-input v-model="form.password" type="password" show-password maxlength="32" placeholder="6-32 位" />
         </el-form-item>
-        <el-form-item label="店铺名称" required>
+        <el-form-item label="首个店铺名称" required>
           <el-input v-model="form.shopName" maxlength="50" />
         </el-form-item>
-        <el-form-item label="收货地址" required>
+        <el-form-item label="首个收货地址" required>
           <el-input
             v-model="form.address"
             type="textarea"
@@ -117,14 +127,22 @@
         <el-button type="primary" :loading="saving" @click="save">保存</el-button>
       </template>
     </el-dialog>
+
+    <ShopManager
+      v-model="shopDialogVisible"
+      :user-id="shopUser.userId"
+      :user-name="shopUser.name"
+      @saved="load"
+    />
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { api, getAdminUser } from '../api'
 import { money, time } from '../utils'
+import ShopManager from '../components/ShopManager.vue'
 
 const adminUser = getAdminUser()
 const isSales = Boolean(adminUser && adminUser.type === 'XS')
@@ -136,6 +154,8 @@ const loading = ref(false)
 const saving = ref(false)
 const truncated = ref(false)
 const dialogVisible = ref(false)
+const shopDialogVisible = ref(false)
+const shopUser = reactive({ userId: '', name: '' })
 const filters = reactive({ keyword: '', salesId: '' })
 const form = reactive(createEmptyForm())
 
@@ -154,12 +174,45 @@ function createEmptyForm() {
 const filtered = computed(() => {
   const text = filters.keyword.trim()
   if (!text) return list.value
-  return list.value.filter(item =>
-    String(item.name || '').includes(text) ||
-    String(item.phone || '').includes(text) ||
-    String(item.shopName || '').includes(text)
-  )
+  return list.value.filter(item => {
+    if (String(item.name || '').includes(text) || String(item.phone || '').includes(text)) return true
+    return (item.shops || []).some(shop => String(shop.shopName || '').includes(text))
+  })
 })
+
+function openShops(row) {
+  shopUser.userId = row.userId
+  shopUser.name = row.name || ''
+  shopDialogVisible.value = true
+}
+
+async function removeCustomer(row) {
+  try {
+    await ElMessageBox.confirm(`确认删除客户「${row.name || row.phone}」？`, '删除客户', {
+      confirmButtonText: '继续',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch (err) {
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      '删除后账号将从列表隐藏并禁止登录，历史订单会保留；该客户的店铺和购物车会一并清理。请再次确认。',
+      '二次确认',
+      { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'error' }
+    )
+  } catch (err) {
+    return
+  }
+  try {
+    await api.deleteUser(row.userId)
+    ElMessage.success('客户已删除')
+    load()
+  } catch (err) {
+    ElMessage.error(err.message)
+  }
+}
 
 async function load() {
   loading.value = true

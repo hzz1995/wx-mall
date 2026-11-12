@@ -5,6 +5,7 @@ const {
   getUser,
   requireLogin
 } = require('../../utils/session')
+const { getShops, saveShops } = require('../../utils/shop')
 
 const PAGE_SIZE = 10
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -77,7 +78,15 @@ Page({
     salesOptions: [{ _id: '', name: '全部销售' }],
     salesNames: ['全部销售'],
     salesIndex: 0,
-    salesId: ''
+    salesId: '',
+    myShopOptions: [{ _id: '', shopName: '全部店铺' }],
+    myShopNames: ['全部店铺'],
+    myShopIndex: 0,
+    myShopId: '',
+    staffShopOptions: [{ _id: '', shopName: '全部店铺' }],
+    staffShopNames: ['全部店铺'],
+    staffShopIndex: 0,
+    staffShopId: ''
   },
 
   onLoad(options) {
@@ -113,7 +122,11 @@ Page({
     if (type === 'GLY' && !mineMode && !this.salesLoaded) {
       this.loadSalesOptions()
     }
-    this.load(true)
+    if (isCustomer) {
+      this.loadMyShopOptions().then(() => this.load(true))
+    } else {
+      this.load(true)
+    }
   },
 
   onPullDownRefresh() {
@@ -178,6 +191,7 @@ Page({
     }
     if (this.data.customerId) query.customerId = this.data.customerId
     if (this.data.isAdmin && this.data.salesId) query.salesId = this.data.salesId
+    if (this.data.staffShopId) query.shopId = this.data.staffShopId
     return query
   },
 
@@ -207,6 +221,8 @@ Page({
       }
       action = 'listStaffOrders'
       payload = query
+    } else if (this.data.myShopId) {
+      payload.shopId = this.data.myShopId
     }
 
     try {
@@ -243,6 +259,8 @@ Page({
       if (!query) return
       action = 'listStaffOrders'
       payload = query
+    } else if (this.data.myShopId) {
+      payload.shopId = this.data.myShopId
     }
 
     this.setData({ loadingMore: true })
@@ -307,6 +325,74 @@ Page({
     }
   },
 
+  async loadMyShopOptions() {
+    let shops = getShops()
+    if (!shops.length) {
+      try {
+        const data = await api.call('listMyShops')
+        shops = data.shops || []
+        saveShops(shops)
+      } catch (err) {
+        shops = []
+      }
+    }
+    const enabled = shops.filter(shop => shop.enabled !== false)
+    const options = [{ _id: '', shopName: '全部店铺' }].concat(enabled)
+    const currentId = this.data.myShopId
+    const index = options.findIndex(item => item._id === currentId)
+    this.setData({
+      myShopOptions: options,
+      myShopNames: options.map(item => item.shopName),
+      myShopIndex: index >= 0 ? index : 0,
+      myShopId: index >= 0 ? currentId : ''
+    })
+  },
+
+  onMyShopChange(event) {
+    const index = Number(event.detail.value) || 0
+    const option = this.data.myShopOptions[index] || { _id: '' }
+    this.setData({ myShopIndex: index, myShopId: option._id || '' })
+    this.load(true)
+  },
+
+  async loadStaffShops(customerId) {
+    const emptyOptions = [{ _id: '', shopName: '全部店铺' }]
+    if (!customerId) {
+      this.setData({
+        staffShopOptions: emptyOptions,
+        staffShopNames: ['全部店铺'],
+        staffShopIndex: 0,
+        staffShopId: ''
+      })
+      return
+    }
+    try {
+      const data = await api.call('listCustomerShops', { customerId })
+      const shops = (data.shops || []).filter(shop => shop.enabled !== false)
+      const options = emptyOptions.concat(shops)
+      this.setData({
+        staffShopOptions: options,
+        staffShopNames: options.map(item => item.shopName),
+        staffShopIndex: 0,
+        staffShopId: ''
+      })
+    } catch (err) {
+      this.setData({
+        staffShopOptions: emptyOptions,
+        staffShopNames: ['全部店铺'],
+        staffShopIndex: 0,
+        staffShopId: ''
+      })
+    }
+  },
+
+  onStaffShopChange(event) {
+    const index = Number(event.detail.value) || 0
+    const option = this.data.staffShopOptions[index] || { _id: '' }
+    this.setData({ staffShopIndex: index, staffShopId: option._id || '' })
+    this.load(true)
+  },
+
   selectRange(event) {
     const value = event.currentTarget.dataset.value
     if (!value || value === this.data.rangeType) return
@@ -324,7 +410,15 @@ Page({
   onCustomerChange(event) {
     const index = Number(event.detail.value) || 0
     const option = this.data.customerOptions[index] || { _id: '' }
-    this.setData({ customerIndex: index, customerId: option._id || '' })
+    this.setData({
+      customerIndex: index,
+      customerId: option._id || '',
+      staffShopOptions: [{ _id: '', shopName: '全部店铺' }],
+      staffShopNames: ['全部店铺'],
+      staffShopIndex: 0,
+      staffShopId: ''
+    })
+    this.loadStaffShops(option._id || '')
     this.load(true)
   },
 
@@ -455,11 +549,13 @@ Page({
       wx.showToast({ title: '商品信息已失效', icon: 'none' })
       return
     }
-    wx.setStorageSync('mall_checkout', {
+    const checkout = {
       source: 'reorder',
       editable: true,
       items
-    })
+    }
+    if (order.shopId) checkout.shopId = order.shopId
+    wx.setStorageSync('mall_checkout', checkout)
     wx.navigateTo({ url: '/pages/checkout/index' })
   },
 

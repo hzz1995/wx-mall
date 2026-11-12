@@ -20,32 +20,14 @@
         bindinput="onNameInput"
       />
     </view>
-    <view class="field" wx:if="{{isCustomer}}">
-      <view class="field-label required">店铺名称</view>
-      <input
-        class="field-input"
-        maxlength="50"
-        placeholder="请填写门店名称"
-        placeholder-class="field-placeholder"
-        value="{{shopName}}"
-        bindinput="onShopInput"
-      />
-    </view>
-    <view class="field" wx:if="{{isCustomer}}">
-      <view class="field-label required">收货地址</view>
-      <textarea
-        class="field-input address"
-        maxlength="200"
-        auto-height
-        placeholder="请填写详细收货地址"
-        placeholder-class="field-placeholder"
-        value="{{address}}"
-        bindinput="onAddressInput"
-      />
+    <view class="field" wx:if="{{isCustomer}}" bindtap="goShops">
+      <view class="field-label">店铺管理</view>
+      <view class="readonly">已维护 {{shopCount}} 个店铺</view>
+      <view class="profile-link">管理 ›</view>
     </view>
     <view class="field" wx:if="{{!isCustomer}}">
       <view class="field-label">账号说明</view>
-      <view class="readonly">销售/管理员账号无需维护门店与收货地址</view>
+      <view class="readonly">销售/管理员账号无需维护店铺与收货地址</view>
     </view>
     <view class="field" wx:if="{{salesName}}">
       <view class="field-label">负责销售</view>

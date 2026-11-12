@@ -1,6 +1,6 @@
 function getXlsx() {
   try {
-    return require('xlsx')
+    return require('xlsx-js-style')
   } catch (err) {
     throw new Error('Excel 导出组件未安装，请重新部署云函数并安装依赖')
   }
@@ -53,6 +53,7 @@ function buildOrderRows(orders) {
         '订单来源': order.isDemo ? '销售演示' : (order.orderSource === 'ASSIST' ? '销售帮下单' : '客户自建'),
         '订单类型': order.isDemo ? '演示订单' : '正式订单',
         '订单状态': order.status === 'CANCELLED' ? '已取消' : (order.status === 'CLOSED' ? '已关闭' : '已完成'),
+        '商品编码': item.productCode || '',
         '商品名称': item.name || '',
         '规格型号': item.spec || '',
         '数量': quantity,
@@ -70,15 +71,25 @@ function buildOrderExport(orders) {
   const XLSX = getXlsx()
   const rows = buildOrderRows(orders)
   const sheet = XLSX.utils.json_to_sheet(rows)
+  const centerStyle = {
+    alignment: { horizontal: 'center', vertical: 'center' }
+  }
+  const centerColumns = [14, 15, 16, 17]
+  for (let rowIndex = 0; rowIndex <= rows.length; rowIndex += 1) {
+    centerColumns.forEach(columnIndex => {
+      const cell = sheet[XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex })]
+      if (cell) cell.s = centerStyle
+    })
+  }
   sheet['!cols'] = [
     { wch: 20 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 18 },
     { wch: 28 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 },
-    { wch: 10 }, { wch: 24 }, { wch: 16 }, { wch: 8 }, { wch: 10 },
-    { wch: 10 }, { wch: 12 }, { wch: 24 }
+    { wch: 10 }, { wch: 14 }, { wch: 24 }, { wch: 16 }, { wch: 8 },
+    { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 24 }
   ]
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, sheet, '订单明细')
-  const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+  const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx', cellStyles: true })
   const now = new Date(Date.now() + 8 * 60 * 60 * 1000)
   const stamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}_${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}`
   return {
@@ -88,4 +99,13 @@ function buildOrderExport(orders) {
   }
 }
 
-module.exports = { buildOrderExport }
+function parseSheetRows(buffer) {
+  const XLSX = getXlsx()
+  const workbook = XLSX.read(buffer, { type: 'buffer', raw: true })
+  const sheetName = workbook.SheetNames && workbook.SheetNames[0]
+  if (!sheetName) throw new Error('导入文件没有工作表')
+  const sheet = workbook.Sheets[sheetName]
+  return XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true })
+}
+
+module.exports = { buildOrderExport, parseSheetRows }

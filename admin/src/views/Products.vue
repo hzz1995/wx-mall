@@ -24,6 +24,7 @@
           :disabled="!selectedProducts.length"
           @click="openBatchEdit"
         >批量修改</el-button>
+        <el-button v-if="canManageProducts" type="primary" plain @click="openImport">导入商品</el-button>
         <el-button v-if="canManageProducts" type="primary" @click="openCreate">新增商品</el-button>
       </div>
     </div>
@@ -31,7 +32,7 @@
     <div class="toolbar">
       <el-input
         v-model="keyword"
-        placeholder="搜索商品名称"
+        placeholder="搜索商品名称 / 编码"
         clearable
         style="width: 260px"
         @keyup.enter="search"
@@ -65,12 +66,22 @@
           <div v-else class="thumb-empty">无图</div>
         </template>
       </el-table-column>
-      <el-table-column prop="name" label="商品名称" min-width="220" show-overflow-tooltip>
+      <el-table-column prop="name" label="商品名称" min-width="200" show-overflow-tooltip>
         <template #default="{ row }">
           <div class="name-cell">
             <span>{{ row.name }}</span>
             <el-tag v-if="row.videos && row.videos.length" size="small" type="info" effect="plain">视频</el-tag>
           </div>
+        </template>
+      </el-table-column>
+      <el-table-column label="商品编码" width="120" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span :class="{ muted: !row.productCode }">{{ row.productCode || '—' }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="规格 / 单位" min-width="140" show-overflow-tooltip>
+        <template #default="{ row }">
+          {{ row.spec || '—' }}<span v-if="row.unit"> / {{ row.unit }}</span>
         </template>
       </el-table-column>
       <el-table-column label="分类" min-width="150" show-overflow-tooltip>
@@ -118,6 +129,12 @@
         <el-form-item label="商品名称" required>
           <el-input v-model="form.name" maxlength="50" show-word-limit placeholder="例如：手工烘焙 挂耳咖啡" />
         </el-form-item>
+        <el-form-item label="商品编码">
+          <el-input v-model="form.productCode" maxlength="50" placeholder="用于导入匹配，建议保持唯一" />
+        </el-form-item>
+        <el-form-item label="单位">
+          <el-input v-model="form.unit" maxlength="20" placeholder="例如：袋、盒、箱" />
+        </el-form-item>
         <el-form-item label="分类" required>
           <el-select
             v-model="form.categoryIds"
@@ -147,7 +164,7 @@
         </el-form-item>
         <el-form-item label="商品图片">
           <ImageUploader v-model="form.images" :max-count="4" />
-          <div class="form-hint">最多 4 张，第一张作为封面；建议使用正方形图片</div>
+          <div class="form-hint">最多 4 张，支持一次选择多张；第一张作为封面，建议使用正方形图片</div>
         </el-form-item>
         <el-form-item label="商品视频">
           <VideoUploader v-model="form.videos" :max-count="2" />
@@ -208,7 +225,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="batchDialogVisible" title="批量修改商品" width="720px" destroy-on-close>
+    <el-dialog v-model="batchDialogVisible" title="批量修改商品" width="900px" destroy-on-close>
       <div class="batch-section-title">已选商品（{{ batchRows.length }}），可逐个修改</div>
 
       <el-form label-width="90px">
@@ -219,11 +236,16 @@
         </el-form-item>
       </el-form>
 
+      <div v-if="batchField === 'images'" class="form-hint" style="margin: -6px 0 10px 90px">
+        可为每个商品单独上传 1-4 张图片，第一张作为封面
+      </div>
+
       <el-table :data="batchRows" size="small" max-height="360" border>
         <el-table-column prop="name" label="商品" min-width="200" show-overflow-tooltip />
-        <el-table-column label="属性值" min-width="220">
+        <el-table-column label="属性值" :min-width="batchField === 'images' ? 460 : 220">
           <template #default="{ row }">
-            <el-select v-if="batchField === 'status'" v-model="row.value" size="small" style="width: 100%">
+            <ImageUploader v-if="batchField === 'images'" v-model="row.value" :max-count="4" />
+            <el-select v-else-if="batchField === 'status'" v-model="row.value" size="small" style="width: 100%">
               <el-option label="上架" value="ON" />
               <el-option label="下架" value="OFF" />
             </el-select>
@@ -261,6 +283,77 @@
         <el-button type="primary" :loading="batchSaving" @click="submitBatch">批量更新</el-button>
       </template>
     </el-dialog>
+    <el-dialog
+      v-model="importDialogVisible"
+      title="导入商品"
+      width="760px"
+      destroy-on-close
+      :close-on-click-modal="false"
+      :close-on-press-escape="!importApplying"
+      :show-close="!importApplying"
+    >
+      <div class="import-bar">
+        <input ref="importFileInput" type="file" accept=".xlsx,.xls,.csv" hidden @change="onImportFile" />
+        <el-button @click="chooseImportFile">选择文件</el-button>
+        <el-button link @click="downloadTemplate">下载模板</el-button>
+        <span class="muted">{{ importFileName || '支持 .xlsx / .xls / .csv' }}</span>
+      </div>
+      <div class="import-category">
+        <span class="import-category-label">新商品默认分类（可不选）</span>
+        <el-select
+          v-model="importCategoryId"
+          clearable
+          filterable
+          placeholder="导入新增商品时使用"
+          style="width: 260px"
+        >
+          <el-option v-for="item in categories" :key="item._id" :label="item.name" :value="item._id" />
+        </el-select>
+      </div>
+      <div class="form-hint">
+        优先按「商品编码」匹配；编码未找到但商品名称唯一匹配无编码商品时，会补写商品编码；仍不存在则新增商品。新商品不选择默认分类时会先处于“未分类”。商品名称、规格、单位、原价、售价为空时不更新；原价、售价按“元”填写。一次最多 2000 行；商品编码建议在 Excel 中设为文本，避免前导零丢失。
+      </div>
+
+      <div v-if="importLoading" class="import-loading">正在解析文件…</div>
+      <div v-if="importApplying" class="import-loading">导入中… {{ importProgress }}</div>
+
+      <el-alert
+        v-if="importMeta && !importApplying"
+        :title="`共 ${importMeta.totalRows} 行，确认后按每批 10 条执行`"
+        :type="importMeta.duplicateCodes && importMeta.duplicateCodes.length ? 'warning' : 'success'"
+        :closable="false"
+        show-icon
+        style="margin-top: 12px"
+      />
+
+      <div v-if="importMeta && importMeta.duplicateCodes && importMeta.duplicateCodes.length" class="import-errors">
+        <div class="import-errors-title">商品编码在文件中重复</div>
+        <div
+          v-for="item in importMeta.duplicateCodes"
+          :key="item.row + item.productCode"
+          class="import-error-item"
+        >第 {{ item.row }} 行：{{ item.productCode }}</div>
+      </div>
+
+      <div v-if="importErrors.length" class="import-errors">
+        <div class="import-errors-title">未处理行（{{ importErrors.length }}）</div>
+        <div v-for="item in importErrors.slice(0, 50)" :key="item.row + item.message" class="import-error-item">
+          第 {{ item.row }} 行：{{ item.message }}
+        </div>
+        <div v-if="importErrors.length > 50" class="import-error-item">……仅展示前 50 条错误</div>
+      </div>
+
+      <template #footer>
+        <el-button @click="importDialogVisible = false" :disabled="importApplying">取消</el-button>
+        <el-button
+          type="primary"
+          :loading="importApplying"
+          :disabled="!importMeta || importLoading || importApplying || importDone || (importMeta.duplicateCodes && importMeta.duplicateCodes.length > 0)"
+          @click="applyImport"
+        >{{ importApplying ? '导入中…' : '开始导入' }}</el-button>
+      </template>
+    </el-dialog>
+
   </div>
 </template>
 
@@ -300,16 +393,31 @@ const batchFields = [
   { value: 'productionDate', label: '生产日期' },
   { value: 'origin', label: '产地' },
   { value: 'spec', label: '规格型号' },
-  { value: 'sort', label: '排序' }
+  { value: 'unit', label: '单位' },
+  { value: 'sort', label: '排序' },
+  { value: 'images', label: '商品图片' }
 ]
 const batchField = ref('validUntil')
 const batchRows = ref([])
+const importDialogVisible = ref(false)
+const importFileInput = ref(null)
+const importFileName = ref('')
+const importCategoryId = ref('')
+const importLoading = ref(false)
+const importApplying = ref(false)
+const importDone = ref(false)
+const importMeta = ref(null)
+const importErrors = ref([])
+const importBase64 = ref('')
+const importProgress = ref('')
 const form = reactive(createEmptyForm())
 
 function createEmptyForm() {
   return {
     _id: '',
     name: '',
+    productCode: '',
+    unit: '',
     categoryIds: [],
     priceYuan: '',
     originalPriceYuan: '',
@@ -411,6 +519,8 @@ function openEdit(row) {
   Object.assign(form, createEmptyForm())
   form._id = row._id
   form.name = row.name
+  form.productCode = row.productCode || ''
+  form.unit = row.unit || ''
   form.categoryIds = Array.isArray(row.categoryIds) && row.categoryIds.length
     ? row.categoryIds.slice()
     : (row.categoryId ? [row.categoryId] : [])
@@ -462,6 +572,8 @@ async function save() {
 
   const payload = {
     name,
+    productCode: form.productCode.trim(),
+    unit: form.unit.trim(),
     categoryIds: form.categoryIds,
     categoryId: form.categoryIds[0],
     price,
@@ -510,6 +622,12 @@ function batchInitialValue(product, field) {
   if (field === 'price') return centsToYuan(product.price)
   if (field === 'originalPrice') return product.originalPrice ? centsToYuan(product.originalPrice) : ''
   if (field === 'sort') return Number(product.sort) || 0
+  if (field === 'images') {
+    return (product.images || []).map((fileID, index) => ({
+      fileID,
+      url: (product.imageUrls && product.imageUrls[index]) || ''
+    }))
+  }
   return product[field] || ''
 }
 
@@ -600,6 +718,13 @@ async function submitBatch() {
         ElMessage.warning(`「${row.name}」排序需为 0-9999 的整数`)
         return
       }
+    } else if (field === 'images') {
+      if (!Array.isArray(value)) value = []
+      if (value.length > 4) {
+        ElMessage.warning(`「${row.name}」最多 4 张图片`)
+        return
+      }
+      value = value.map(item => item && item.fileID).filter(Boolean)
     } else {
       value = String(value || '').trim()
     }
@@ -651,6 +776,160 @@ async function remove(row) {
   }
 }
 
+function openImport() {
+  importDialogVisible.value = true
+  importMeta.value = null
+  importErrors.value = []
+  importDone.value = false
+  importBase64.value = ''
+  importFileName.value = ''
+  importCategoryId.value = categoryFilter.value || ''
+}
+
+function chooseImportFile() {
+  if (importFileInput.value) importFileInput.value.click()
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('读取文件失败'))
+    reader.onload = () => resolve(reader.result)
+    reader.readAsDataURL(file)
+  })
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+async function requestImport(payload) {
+  let lastError = null
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return await api.importProducts(payload)
+    } catch (err) {
+      lastError = err
+      if (attempt < 3) await sleep(1500 * attempt)
+    }
+  }
+  throw lastError
+}
+
+function friendlyImportError(err) {
+  const message = (err && err.message) || ''
+  if (/504|timeout|超时|网络|network/i.test(message)) {
+    return '导入请求超时，数据可能已部分写入，请刷新商品列表核对后重试'
+  }
+  return message || '导入失败'
+}
+
+async function onImportFile(event) {
+  const input = event.target
+  const file = input.files && input.files[0]
+  input.value = ''
+  if (!file) return
+  if (file.size > 5 * 1024 * 1024) {
+    ElMessage.warning('导入文件不能超过 5MB')
+    return
+  }
+  importFileName.value = file.name
+  importMeta.value = null
+  importErrors.value = []
+  importDone.value = false
+  importLoading.value = true
+  try {
+    const base64 = await readFileAsBase64(file)
+    importBase64.value = base64
+    importMeta.value = await requestImport({
+      fileBase64: base64,
+      filename: file.name,
+      metaOnly: true
+    })
+  } catch (err) {
+    ElMessage.error(friendlyImportError(err))
+  } finally {
+    importLoading.value = false
+  }
+}
+
+async function applyImport() {
+  if (!importBase64.value || !importMeta.value) return
+  const meta = importMeta.value
+  if (meta.duplicateCodes && meta.duplicateCodes.length) {
+    ElMessage.warning('文件中存在重复商品编码，请先修正')
+    return
+  }
+  const total = Number(meta.totalRows) || 0
+  if (!total) return
+  importApplying.value = true
+  importDone.value = false
+  importErrors.value = []
+  importProgress.value = `0/${total}`
+  let rowOffset = 0
+  let updated = 0
+  let created = 0
+  const errors = []
+  try {
+    while (rowOffset < total) {
+      const data = await requestImport({
+        fileBase64: importBase64.value,
+        filename: importFileName.value,
+        defaultCategoryId: importCategoryId.value,
+        dryRun: false,
+        rowOffset,
+        rowLimit: 10
+      })
+      updated += Number(data.updated) || 0
+      created += Number(data.created) || 0
+      if (Array.isArray(data.errors)) errors.push(...data.errors)
+      const processed = Number(data.processedRows) || 0
+      rowOffset += processed
+      importProgress.value = `${Math.min(rowOffset, total)}/${total}`
+      if (!processed) break
+      if (rowOffset < total && rowOffset % 100 === 0) {
+        await sleep(3000)
+      }
+    }
+    importErrors.value = errors
+    importDone.value = true
+    if (errors.length) {
+      ElMessage.warning(`已新增 ${created} 件、更新 ${updated} 件，${errors.length} 行未处理`)
+      load()
+    } else {
+      ElMessage.success(`导入成功：新增 ${created} 件、更新 ${updated} 件商品`)
+      importDialogVisible.value = false
+      load()
+    }
+  } catch (err) {
+    const message = friendlyImportError(err)
+    importErrors.value = errors.concat({ row: 0, message })
+    importDone.value = true
+    ElMessage.warning(message)
+    load()
+  } finally {
+    importApplying.value = false
+    importProgress.value = ''
+  }
+}
+
+function downloadTemplate() {
+  const rows = [
+    ['商品编码', '商品名称', '规格', '单位', '原价', '售价'],
+    ['A001', '示例商品', '500g/袋', '袋', '39.90', '35.90']
+  ]
+  const csv = '\ufeff' + rows.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = '商品导入模板.csv'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
 onMounted(load)
 </script>
 
@@ -691,5 +970,54 @@ onMounted(load)
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.import-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.import-category {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 4px;
+}
+
+.import-category-label {
+  font-size: 13px;
+  color: #55564e;
+}
+
+.import-loading {
+  padding: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: #8c8b82;
+}
+
+.import-errors {
+  margin-top: 12px;
+  max-height: 140px;
+  overflow: auto;
+  padding: 10px 12px;
+  background: #fff6f4;
+  border: 1px solid #f2d6ce;
+  border-radius: 8px;
+}
+
+.import-errors-title {
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #c4563a;
+}
+
+.import-error-item {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #8a5a4a;
 }
 </style>

@@ -74,11 +74,15 @@
 
       <view class="divider"></view>
 
-      <view class="attrs" wx:if="{{product.spec || product.validUntil || product.productionDate || product.origin}}">
+      <view class="attrs" wx:if="{{product.spec || product.unit || product.validUntil || product.productionDate || product.origin}}">
         <view class="attrs-title">商品参数</view>
         <view class="attr-row" wx:if="{{product.spec}}">
           <text class="attr-label">规格型号</text>
           <text class="attr-value">{{product.spec}}</text>
+        </view>
+        <view class="attr-row" wx:if="{{product.unit}}">
+          <text class="attr-label">单位</text>
+          <text class="attr-value">{{product.unit}}</text>
         </view>
         <view class="attr-row" wx:if="{{product.validUntil}}">
           <text class="attr-label">有效期至</text>

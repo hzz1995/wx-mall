@@ -14,12 +14,12 @@ function sanitizeUser(user) {
     _id: user._id,
     phone: user.phone,
     name: user.name,
-    shopName: user.shopName || '',
-    address: user.address || '',
     salesId: user.salesId || '',
     categoryIds: Array.isArray(user.categoryIds) ? user.categoryIds.map(String) : [],
+    shopCount: Number(user.shopCount) || 0,
     type: user.type,
     enabled: user.enabled !== false,
+    deleted: user.deleted === true,
     createdAt: toTimestamp(user.createdAt),
     updatedAt: toTimestamp(user.updatedAt)
   }

@@ -15,14 +15,10 @@
       </view>
     </view>
 
-    <view class="info-card" wx:if="{{user.shopName || user.address || salesName}}">
-      <view class="info-row" wx:if="{{user.shopName}}">
-        <view class="info-label">店铺名称</view>
-        <view class="info-value">{{user.shopName}}</view>
-      </view>
-      <view class="info-row" wx:if="{{user.address}}">
-        <view class="info-label">收货地址</view>
-        <view class="info-value">{{user.address}}</view>
+    <view class="info-card" wx:if="{{shopName || salesName}}">
+      <view class="info-row" wx:if="{{shopName}}">
+        <view class="info-label">当前店铺</view>
+        <view class="info-value">{{shopName}}{{shopCount > 1 ? '（共 ' + shopCount + ' 个）' : ''}}</view>
       </view>
       <view class="info-row" wx:if="{{salesName}}">
         <view class="info-label">负责销售</view>
@@ -37,6 +33,10 @@
       </view>
       <view class="menu-item" wx:if="{{user.type === 'XS'}}" bindtap="goMyOrders">
         <view class="menu-text">我的订单</view>
+        <view class="menu-arrow">›</view>
+      </view>
+      <view class="menu-item" wx:if="{{user.type === 'KH'}}" bindtap="goShops">
+        <view class="menu-text">店铺管理</view>
         <view class="menu-arrow">›</view>
       </view>
       <view class="menu-item" wx:if="{{user.type === 'KH' || user.type === 'XS' || user.type === 'GLY'}}" bindtap="goOrders">

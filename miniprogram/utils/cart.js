@@ -17,7 +17,7 @@ function syncCartBadge(count) {
   }
 }
 
-async function refreshCartBadge(maxAgeMs) {
+async function refreshCartBadge(maxAgeMs, shopId) {
   const { getToken, getUser } = require('./session')
   const user = getUser()
   if (!getToken() || (user && !['KH', 'XS'].includes(user.type))) {
@@ -33,7 +33,7 @@ async function refreshCartBadge(maxAgeMs) {
   }
   try {
     const { call } = require('./api')
-    const data = await call('getCart')
+    const data = await call('getCart', shopId ? { shopId } : {})
     syncCartBadge(data.count)
     return Number(data.count) || 0
   } catch (err) {

@@ -5,6 +5,7 @@ const {
   consumeLoginRedirect
 } = require('../../utils/session')
 const { refreshCartBadge } = require('../../utils/cart')
+const { saveShops, setActiveShopId, getActiveShopId } = require('../../utils/shop')
 
 Page({
   data: {
@@ -81,7 +82,9 @@ Page({
     try {
       const data = await api.call('login', { phone, password })
       saveSession(data.token, data.user)
-      await refreshCartBadge()
+      saveShops(data.shops || [])
+      if (data.defaultShopId) setActiveShopId(data.defaultShopId)
+      await refreshCartBadge(0, getActiveShopId())
       wx.showToast({ title: '登录成功', icon: 'success' })
       const redirect = consumeLoginRedirect()
       setTimeout(() => {

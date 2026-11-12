@@ -6,6 +6,7 @@ const {
   requireLogin
 } = require('../../utils/session')
 const { syncCartBadge, refreshCartBadge } = require('../../utils/cart')
+const { getActiveShopId } = require('../../utils/shop')
 
 Page({
   data: {
@@ -39,9 +40,15 @@ Page({
       this.load(this.pageOptions || {})
     }
     if (this.data.canShop) {
-      refreshCartBadge().then(count => {
-        this.setData({ cartCount: Number(count) || 0 })
-      })
+      const user = getUser() || {}
+      const shopId = user.type === 'KH' ? getActiveShopId() : ''
+      if (user.type === 'KH' && !shopId) {
+        this.setData({ cartCount: 0 })
+      } else {
+        refreshCartBadge(0, shopId).then(count => {
+          this.setData({ cartCount: Number(count) || 0 })
+        })
+      }
     }
   },
 
@@ -115,6 +122,18 @@ Page({
       wx.showToast({ title: '只有客户和销售账号可以加入购物车', icon: 'none' })
       return
     }
+    const user = getUser() || {}
+    if (user.type === 'KH' && !getActiveShopId()) {
+      wx.showModal({
+        title: '请先添加店铺',
+        content: '下单前需要先维护店铺和收货地址',
+        confirmText: '去添加',
+        success: res => {
+          if (res.confirm) wx.navigateTo({ url: '/pages/shops/index?first=1' })
+        }
+      })
+      return
+    }
     this.setData({
       qtyVisible: true,
       qtyValue: 1,
@@ -139,10 +158,11 @@ Page({
 
     this.setData({ qtyVisible: false, adding: true })
     try {
-      const data = await api.call('addToCart', {
-        productId: product._id,
-        quantity
-      })
+      const user = getUser() || {}
+      const shopId = user.type === 'KH' ? getActiveShopId() : ''
+      const payload = { productId: product._id, quantity }
+      if (shopId) payload.shopId = shopId
+      const data = await api.call('addToCart', payload)
       syncCartBadge(data.count)
       this.setData({ cartCount: Number(data.count) || 0 })
       wx.showToast({ title: `已加入 ${quantity} 件`, icon: 'success' })

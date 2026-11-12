@@ -49,6 +49,21 @@
       >
         <el-option v-for="item in salesList" :key="item._id" :label="item.name" :value="item._id" />
       </el-select>
+      <el-select
+        v-model="filters.shopId"
+        placeholder="全部店铺"
+        clearable
+        filterable
+        style="width: 220px"
+        @change="search"
+      >
+        <el-option
+          v-for="item in shopList"
+          :key="item._id"
+          :label="`${item.shopName}（${item.customerName}）`"
+          :value="item._id"
+        />
+      </el-select>
       <el-input
         v-model="filters.keyword"
         placeholder="姓名 / 手机号 / 订单号 / 店铺"
@@ -117,11 +132,12 @@
           <el-tag :type="statusType(row.status)" effect="light">{{ statusText(row.status) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="150" fixed="right">
+      <el-table-column label="操作" width="220" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="openDetail(row)">详情</el-button>
           <el-button v-if="isAdmin && row.status === 'DONE'" link type="primary" @click="close(row)">关闭</el-button>
           <el-button v-if="isAdmin && row.status === 'DONE'" link type="danger" @click="cancel(row)">取消</el-button>
+          <el-button v-if="isAdmin" link type="danger" @click="removeOrder(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -202,8 +218,9 @@ const pageSize = 10
 const loading = ref(false)
 const exporting = ref(false)
 const selectedOrders = ref([])
-const filters = reactive({ status: '', orderType: 'normal', salesId: '', keyword: '' })
+const filters = reactive({ status: '', orderType: 'normal', salesId: '', shopId: '', keyword: '' })
 const salesList = ref([])
+const shopList = ref([])
 
 const detailVisible = ref(false)
 const current = ref(null)
@@ -273,6 +290,7 @@ async function load() {
       status: filters.status || '',
       orderType: filters.orderType || 'normal',
       salesId: filters.salesId || '',
+      shopId: filters.shopId || '',
       keyword: filters.keyword.trim(),
       page: page.value,
       pageSize
@@ -349,6 +367,35 @@ async function cancel(row) {
   }
 }
 
+async function removeOrder(row) {
+  try {
+    await ElMessageBox.confirm(`确认删除订单 ${row.orderNo}？`, '删除订单', {
+      confirmButtonText: '继续',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch (err) {
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      '删除后不可恢复；未取消的正式订单会回滚商品销量。请再次确认删除。',
+      '二次确认',
+      { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'error' }
+    )
+  } catch (err) {
+    return
+  }
+  try {
+    await api.deleteOrder(row._id)
+    ElMessage.success('订单已删除')
+    detailVisible.value = false
+    load()
+  } catch (err) {
+    ElMessage.error(err.message)
+  }
+}
+
 async function loadSales() {
   try {
     const data = await api.sales()
@@ -358,9 +405,19 @@ async function loadSales() {
   }
 }
 
+async function loadShops() {
+  try {
+    const data = await api.shops()
+    shopList.value = data.list || []
+  } catch (err) {
+    // 店铺列表加载失败不影响订单查看
+  }
+}
+
 onMounted(() => {
   load()
   if (isAdmin.value) loadSales()
+  loadShops()
 })
 </script>
 

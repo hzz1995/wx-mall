@@ -35,14 +35,21 @@
       <el-select v-model="salesId" placeholder="全部销售" clearable style="width: 150px" @change="load">
         <el-option v-for="item in salesList" :key="item._id" :label="item.name" :value="item._id" />
       </el-select>
-      <el-input
-        v-model="shopName"
-        placeholder="店铺名称"
+      <el-select
+        v-model="shopId"
+        placeholder="全部店铺"
         clearable
-        style="width: 170px"
-        @keyup.enter="load"
-        @clear="load"
-      />
+        filterable
+        style="width: 220px"
+        @change="load"
+      >
+        <el-option
+          v-for="item in shopList"
+          :key="item._id"
+          :label="`${item.shopName}（${item.customerName}）`"
+          :value="item._id"
+        />
+      </el-select>
       <el-button :loading="loading" @click="load">查询</el-button>
       <span class="range-text">{{ rangeText }}{{ rangeHint }}</span>
     </div>
@@ -203,8 +210,9 @@ const rangeType = ref('today')
 const customRange = ref([])
 const monthValue = ref(dayjs().format('YYYY-MM'))
 const salesId = ref('')
-const shopName = ref('')
+const shopId = ref('')
 const salesList = ref([])
+const shopList = ref([])
 
 const rangeText = computed(() => {
   if (rangeType.value === 'custom') {
@@ -295,7 +303,7 @@ async function load() {
     const data = await api.reports({
       ...params,
       salesId: salesId.value,
-      shopName: shopName.value.trim()
+      shopId: shopId.value
     })
     summary.value = data.summary || {}
     topProducts.value = data.topProducts || []
@@ -320,9 +328,19 @@ async function loadSales() {
   }
 }
 
+async function loadShops() {
+  try {
+    const data = await api.shops()
+    shopList.value = data.list || []
+  } catch (err) {
+    ElMessage.error(err.message)
+  }
+}
+
 onMounted(() => {
   load()
   loadSales()
+  loadShops()
 })
 </script>
 

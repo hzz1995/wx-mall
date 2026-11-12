@@ -8,10 +8,25 @@
     >{{exporting ? '导出中…' : '导出 Excel' + (selectedCount ? '（' + selectedCount + '）' : '')}}</view>
   </view>
 
+  <view class="my-shop-filter" wx:if="{{isCustomer && myShopNames.length > 1}}">
+    <picker mode="selector" range="{{myShopNames}}" value="{{myShopIndex}}" bindchange="onMyShopChange">
+      <view class="select-pill">店铺：{{myShopNames[myShopIndex]}} ▾</view>
+    </picker>
+  </view>
+
   <view class="staff-filters" wx:if="{{isStaff && !mineMode}}">
     <view class="picker-row">
       <picker mode="selector" range="{{customerNames}}" value="{{customerIndex}}" bindchange="onCustomerChange">
         <view class="select-pill">客户：{{customerNames[customerIndex]}} ▾</view>
+      </picker>
+      <picker
+        wx:if="{{customerId && staffShopNames.length > 1}}"
+        mode="selector"
+        range="{{staffShopNames}}"
+        value="{{staffShopIndex}}"
+        bindchange="onStaffShopChange"
+      >
+        <view class="select-pill">店铺：{{staffShopNames[staffShopIndex]}} ▾</view>
       </picker>
       <picker
         wx:if="{{isAdmin}}"
@@ -82,6 +97,7 @@
         <text wx:if="{{item.shopName}}"> · {{item.shopName}}</text>
         <text wx:if="{{item.phone}}"> · {{item.phone}}</text>
       </view>
+      <view class="order-shop" wx:if="{{isCustomer && item.shopName}}">店铺：{{item.shopName}}</view>
       <view class="order-sales" wx:if="{{isAdmin && !mineMode}}">所属销售：{{item.salesName || '—'}}</view>
 
       <view class="order-body">

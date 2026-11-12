@@ -150,6 +150,9 @@ export const api = {
   updateUser(id, body) {
     return request(`/users/${id}`, { method: 'PUT', body })
   },
+  deleteUser(id) {
+    return request(`/users/${id}`, { method: 'DELETE' })
+  },
   resetUserPassword(id, password) {
     return request(`/users/${id}/password`, {
       method: 'POST',
@@ -174,6 +177,27 @@ export const api = {
   closeOrder(id) {
     return request(`/orders/${id}`, { method: 'PATCH', body: { status: 'CLOSED' } })
   },
+  deleteOrder(id) {
+    return request(`/orders/${id}`, { method: 'DELETE' })
+  },
+  shops(params) {
+    return request(`/shops${toQuery(params)}`)
+  },
+  userShops(userId) {
+    return request(`/users/${userId}/shops`)
+  },
+  createUserShop(userId, body) {
+    return request(`/users/${userId}/shops`, { method: 'POST', body })
+  },
+  updateUserShop(userId, shopId, body) {
+    return request(`/users/${userId}/shops/${shopId}`, { method: 'PUT', body })
+  },
+  deleteUserShop(userId, shopId) {
+    return request(`/users/${userId}/shops/${shopId}`, { method: 'DELETE' })
+  },
+  setDefaultUserShop(userId, shopId) {
+    return request(`/users/${userId}/shops/${shopId}/default`, { method: 'POST' })
+  },
   products(params) {
     return request(`/products${toQuery(params)}`)
   },
@@ -188,6 +212,9 @@ export const api = {
   },
   batchUpdateProducts(body) {
     return request('/products/batch', { method: 'POST', body })
+  },
+  importProducts(body) {
+    return request('/products/import', { method: 'POST', body })
   },
   categories() {
     return request('/categories')

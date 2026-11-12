@@ -23,6 +23,22 @@
       </view>
     </view>
 
+    <view class="shop-row" wx:if="{{isCustomer && shopCount > 1}}">
+      <picker
+        class="shop-picker"
+        mode="selector"
+        range="{{shopNames}}"
+        value="{{shopIndex}}"
+        bindchange="onShopChange"
+      >
+        <view class="shop-pill">
+          <text class="shop-pill-label">切换店铺：</text>
+          <text class="shop-pill-name">{{shopNames[shopIndex]}}</text>
+          <text class="shop-pill-arrow">▾</text>
+        </view>
+      </picker>
+    </view>
+
     <view class="search-bar">
       <image class="search-icon" src="/images/icon-search.png" mode="aspectFit" />
       <input

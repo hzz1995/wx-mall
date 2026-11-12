@@ -22,6 +22,11 @@ Page({
     customer: null,
     customerLoading: true,
     customerError: '',
+    shops: [],
+    shopNames: [],
+    shopIndex: 0,
+    shopId: '',
+    shopName: '',
     products: [],
     productLoading: true,
     productLoadingMore: false,
@@ -78,14 +83,42 @@ Page({
     try {
       const data = await api.call('getAssistCustomer', { customerId: this.data.customerId })
       const customer = data.customer || null
+      const shops = (data.shops || []).filter(shop => shop.enabled !== false)
+      if (!shops.length) {
+        this.setData({
+          customer,
+          customerLoading: false,
+          customerError: '该客户还没有维护店铺，请先让客户或管理员添加店铺'
+        })
+        return
+      }
+      const index = Math.max(0, shops.findIndex(shop => shop._id === data.defaultShopId))
+      const shop = shops[index] || shops[0]
       this.setData({
         customer,
         customerLoading: false,
-        address: this.data.address || (customer && customer.address) || ''
+        shops,
+        shopNames: shops.map(item => item.shopName),
+        shopIndex: index,
+        shopId: shop._id,
+        shopName: shop.shopName,
+        address: shop.address || ''
       })
     } catch (err) {
       this.setData({ customerLoading: false, customerError: err.message || '客户加载失败' })
     }
+  },
+
+  onShopChange(event) {
+    const index = Number(event.detail.value) || 0
+    const shop = this.data.shops[index]
+    if (!shop) return
+    this.setData({
+      shopIndex: index,
+      shopId: shop._id,
+      shopName: shop.shopName,
+      address: shop.address || ''
+    })
   },
 
   decorateProducts(products) {
@@ -213,10 +246,6 @@ Page({
     this.setSelected(this.data.selected.filter(item => item.productId !== productId))
   },
 
-  onAddressInput(event) {
-    this.setData({ address: event.detail.value })
-  },
-
   onRemarkInput(event) {
     this.setData({ remark: event.detail.value })
   },
@@ -233,10 +262,15 @@ Page({
       wx.showToast({ title: '请先选择商品', icon: 'none' })
       return
     }
+    if (!this.data.shopId) {
+      wx.showToast({ title: '请先选择客户店铺', icon: 'none' })
+      return
+    }
     this.setData({ addingCart: true })
     try {
       await api.call('assistAddToCart', {
         customerId: this.data.customerId,
+        shopId: this.data.shopId,
         items: this.selectedPayload()
       })
       this.setSelected([])
@@ -253,16 +287,16 @@ Page({
       wx.showToast({ title: '请先选择商品', icon: 'none' })
       return
     }
-    if (!this.data.address.trim()) {
-      wx.showToast({ title: '请填写收货地址', icon: 'none' })
+    if (!this.data.shopId) {
+      wx.showToast({ title: '请先选择客户店铺', icon: 'none' })
       return
     }
     this.setData({ submitting: true })
     try {
       const data = await api.call('assistCreateOrder', {
         customerId: this.data.customerId,
+        shopId: this.data.shopId,
         items: this.selectedPayload(),
-        address: this.data.address.trim(),
         remark: this.data.remark.trim()
       })
       wx.showModal({

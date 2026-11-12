@@ -8,14 +8,22 @@ exports.main = async (event, context) => {
   const startedAt = Date.now()
   try {
     if (event && event.Type === 'Timer') {
-      console.log('[api] keep warm')
+      try {
+        require('./routes/admin')
+        require('xlsx-js-style')
+        console.log('[api] keep warm, heavy modules preloaded')
+      } catch (err) {
+        console.warn('[api] keep warm preload failed', err)
+      }
       return { ok: true, data: { warm: true } }
     }
 
     if (event.httpMethod) {
       const { handleHttp } = require('./routes/admin')
       console.log('[api] http', event.httpMethod, event.path)
-      return await handleHttp(event)
+      const data = await handleHttp(event)
+      console.log('[api] http done', event.httpMethod, event.path, data && data.statusCode, 'costMs', Date.now() - startedAt)
+      return data
     }
 
     const { handleMini } = require('./routes/mini')

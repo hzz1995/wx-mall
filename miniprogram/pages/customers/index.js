@@ -75,9 +75,10 @@ Page({
       if (filter === 'ordered' && Number(item.monthOrderCount) <= 0) return false
       if (filter === 'unordered' && Number(item.monthOrderCount) > 0) return false
       if (!keyword) return true
-      return String(item.name || '').includes(keyword) ||
-        String(item.phone || '').includes(keyword) ||
-        String(item.shopName || '').includes(keyword)
+      if (String(item.name || '').includes(keyword) || String(item.phone || '').includes(keyword)) {
+        return true
+      }
+      return (item.shops || []).some(shop => String(shop.shopName || '').includes(keyword))
     })
     this.setData({ filtered })
   },

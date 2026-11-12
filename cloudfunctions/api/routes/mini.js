@@ -14,6 +14,17 @@ const {
 const { hashPassword, verifyPassword } = require('../lib/password')
 const { issueToken, MINI_TTL_MS } = require('../lib/token')
 const {
+  listShops,
+  resolveShop,
+  createShop,
+  updateShop,
+  deleteShop,
+  setDefaultShop,
+  syncShopCount,
+  listShopsForUsers,
+  pickDefaultShop
+} = require('../lib/shops')
+const {
   getSettings,
   serializeProduct,
   serializeOrder,
@@ -46,7 +57,12 @@ function chinaMonthStart(monthOffset) {
 async function getScopedCustomer(staff, customerId) {
   if (staff.type !== 'XS') throw new Error('仅销售可操作客户')
   const customer = await getUserById(customerId)
-  if (!customer || customer.type !== 'KH' || String(customer.salesId || '') !== String(staff._id)) {
+  if (
+    !customer ||
+    customer.type !== 'KH' ||
+    customer.deleted === true ||
+    String(customer.salesId || '') !== String(staff._id)
+  ) {
     throw new Error('客户不存在或不属于你')
   }
   if (customer.enabled === false) throw new Error('客户账号已停用')
@@ -85,6 +101,7 @@ function toProductListItem(product) {
     categoryId: item.categoryId || '',
     code: item.code || '',
     spec: item.spec,
+    unit: item.unit,
     validUntil: item.validUntil,
     productionDate: item.productionDate,
     origin: item.origin,
@@ -123,23 +140,33 @@ function cartCount(items) {
   return (items || []).reduce((total, item) => total + (Number(item.quantity) || 0), 0)
 }
 
-async function readCart(userId) {
+function cartDocId(userId, shopId) {
+  return `${String(userId)}_${String(shopId || 'demo')}`
+}
+
+async function readCart(userId, shopId) {
   try {
-    const res = await db.collection('carts').doc(String(userId)).get()
-    return res.data || { userId, items: [] }
+    const res = await db.collection('carts').doc(cartDocId(userId, shopId)).get()
+    return res.data || { userId, shopId, items: [] }
   } catch (err) {
-    return { userId, items: [] }
+    return { userId, shopId, items: [] }
   }
 }
 
-async function writeCart(userId, items) {
-  await db.collection('carts').doc(String(userId)).set({
+async function writeCart(userId, shopId, items) {
+  await db.collection('carts').doc(cartDocId(userId, shopId)).set({
     data: {
       userId: String(userId),
+      shopId: String(shopId || 'demo'),
       items,
       updatedAt: new Date()
     }
   })
+}
+
+async function loadShopsForUser(user) {
+  if (!user || user.type !== 'KH') return []
+  return listShops(user._id)
 }
 
 async function login(event) {
@@ -148,7 +175,7 @@ async function login(event) {
   if (!user || !verifyPassword(event.password, user.passwordSalt, user.passwordHash)) {
     throw new Error('手机号或密码错误')
   }
-  if (user.enabled === false) {
+  if (user.enabled === false || user.deleted === true) {
     throw new Error('账号已停用，请联系店主')
   }
   await db
@@ -157,9 +184,16 @@ async function login(event) {
     .update({ data: { lastLoginAt: new Date() } })
     .catch(err => console.warn('update lastLoginAt failed', err))
 
+  const shops = await loadShopsForUser(user)
+  if (Number(user.shopCount) !== shops.length) {
+    await syncShopCount(user._id, shops.length)
+  }
+  const defaultShop = pickDefaultShop(shops)
   return {
     token: issueToken(user, MINI_TTL_MS),
-    user: sanitizeUser(user)
+    user: { ...sanitizeUser(user), shopCount: shops.length },
+    shops,
+    defaultShopId: defaultShop ? defaultShop._id : ''
   }
 }
 
@@ -222,11 +256,13 @@ async function listCatalogCategories(user) {
 }
 
 async function getHome(user) {
-  const [settings, categories, pageData] = await Promise.all([
+  const [settings, categories, pageData, shops] = await Promise.all([
     getSettings(),
     listCatalogCategories(user),
-    fetchProductPage(user, { page: 1 })
+    fetchProductPage(user, { page: 1 }),
+    loadShopsForUser(user)
   ])
+  const defaultShop = pickDefaultShop(shops)
   return {
     settings: {
       shopName: settings.shopName,
@@ -236,7 +272,9 @@ async function getHome(user) {
     categories,
     products: pageData.list,
     hasMore: pageData.hasMore,
-    page: pageData.page
+    page: pageData.page,
+    shops,
+    defaultShopId: defaultShop ? defaultShop._id : ''
   }
 }
 
@@ -315,9 +353,16 @@ async function getProduct(user, event) {
 }
 
 async function me(user) {
+  const shops = await loadShopsForUser(user)
+  if (Number(user.shopCount) !== shops.length) {
+    await syncShopCount(user._id, shops.length)
+  }
+  const defaultShop = pickDefaultShop(shops)
   return {
-    user: sanitizeUser(user),
-    salesName: user.salesId ? await getSalesName(user.salesId) : ''
+    user: { ...sanitizeUser(user), shopCount: shops.length },
+    salesName: user.salesId ? await getSalesName(user.salesId) : '',
+    shops,
+    defaultShopId: defaultShop ? defaultShop._id : ''
   }
 }
 
@@ -326,19 +371,46 @@ async function updateProfile(user, event) {
   if (!name || name.length > 20) {
     throw new Error('请填写姓名（20 字以内）')
   }
-  const shopName = String(event.shopName || '').trim().slice(0, 50)
-  const address = String(event.address || '').trim().slice(0, 200)
   const data = { name, updatedAt: new Date() }
-
-  if (user.type === 'KH') {
-    if (!shopName) throw new Error('请填写门店名称')
-    if (!address) throw new Error('请填写收货地址')
-    data.shopName = shopName
-    data.address = address
-  }
-
   await db.collection('users').doc(user._id).update({ data })
   return { user: sanitizeUser({ ...user, ...data }) }
+}
+
+async function myShops(user) {
+  if (user.type !== 'KH') return { shops: [], defaultShopId: '', shopCount: 0 }
+  const shops = await listShops(user._id)
+  if (Number(user.shopCount) !== shops.length) {
+    await syncShopCount(user._id, shops.length)
+  }
+  const defaultShop = pickDefaultShop(shops)
+  return { shops, defaultShopId: defaultShop ? defaultShop._id : '', shopCount: shops.length }
+}
+
+async function addShop(user, event) {
+  if (user.type !== 'KH') throw new Error('仅客户可以维护店铺')
+  await createShop(user._id, event)
+  return myShops(user)
+}
+
+async function editShop(user, event) {
+  if (user.type !== 'KH') throw new Error('仅客户可以维护店铺')
+  if (!event.shopId) throw new Error('缺少店铺信息')
+  await updateShop(user._id, event.shopId, event)
+  return myShops(user)
+}
+
+async function removeShop(user, event) {
+  if (user.type !== 'KH') throw new Error('仅客户可以维护店铺')
+  if (!event.shopId) throw new Error('缺少店铺信息')
+  await deleteShop(user._id, event.shopId)
+  return myShops(user)
+}
+
+async function makeDefaultShop(user, event) {
+  if (user.type !== 'KH') throw new Error('仅客户可以维护店铺')
+  if (!event.shopId) throw new Error('缺少店铺信息')
+  await setDefaultShop(user._id, event.shopId)
+  return myShops(user)
 }
 
 async function changePassword(user, event) {
@@ -356,8 +428,10 @@ async function changePassword(user, event) {
   }
 }
 
-async function getCart(user) {
-  const cart = await readCart(user._id)
+async function getCart(user, event) {
+  const shop = user.type === 'KH' ? await resolveShop(user, event.shopId) : null
+  const shopId = shop ? shop._id : 'demo'
+  const cart = await readCart(user._id, shopId)
   const rawItems = Array.isArray(cart.items) ? cart.items : []
   const productIds = rawItems.map(item => item.productId).filter(Boolean)
   let products = []
@@ -380,6 +454,7 @@ async function getCart(user) {
       quantity: Math.min(99, Math.max(1, Number(item.quantity) || 1)),
       checked: item.checked !== false && onSale,
       name: product.name,
+      spec: product.spec || '',
       price: Number(product.price) || 0,
       cover: (product.images || [])[0] || '',
       status: product.status,
@@ -390,6 +465,7 @@ async function getCart(user) {
   if (items.length !== rawItems.length) {
     await writeCart(
       user._id,
+      shopId,
       items.map(item => ({
         productId: item.productId,
         quantity: item.quantity,
@@ -402,6 +478,9 @@ async function getCart(user) {
   const selected = items.filter(item => item.checked && item.onSale)
   return {
     items,
+    shop: shop
+      ? { _id: shop._id, shopName: shop.shopName, address: shop.address }
+      : null,
     count: cartCount(items),
     selectedCount: selected.reduce((total, item) => total + item.quantity, 0),
     totalAmount: selected.reduce((total, item) => total + item.price * item.quantity, 0)
@@ -410,12 +489,14 @@ async function getCart(user) {
 
 async function addToCart(user, event) {
   ensureShopper(user, '只有客户和销售账号可以加入购物车')
+  const shop = user.type === 'KH' ? await resolveShop(user, event.shopId) : null
+  const shopId = shop ? shop._id : 'demo'
   const product = await getProductById(event.productId)
   if (!product || product.status !== 'ON' || !canAccessProduct(user, product)) {
     throw new Error('商品不存在或已下架')
   }
   const quantity = Math.min(99, Math.max(1, Number(event.quantity) || 1))
-  const cart = await readCart(user._id)
+  const cart = await readCart(user._id, shopId)
   const items = (cart.items || []).slice()
   const existing = items.find(item => item.productId === product._id)
   if (existing) {
@@ -424,15 +505,17 @@ async function addToCart(user, event) {
   } else {
     items.push({ productId: product._id, quantity, checked: true, addedAt: new Date() })
   }
-  await writeCart(user._id, items)
-  return { count: cartCount(items) }
+  await writeCart(user._id, shopId, items)
+  return { count: cartCount(items), shopId }
 }
 
 async function updateCartItem(user, event) {
   ensureShopper(user, '只有客户和销售账号可以操作购物车')
+  const shop = user.type === 'KH' ? await resolveShop(user, event.shopId) : null
+  const shopId = shop ? shop._id : 'demo'
   const productId = String(event.productId || '')
   if (!productId) throw new Error('缺少商品信息')
-  const cart = await readCart(user._id)
+  const cart = await readCart(user._id, shopId)
   const items = (cart.items || []).slice()
   const item = items.find(entry => entry.productId === productId)
   const product = await getProductById(productId)
@@ -448,14 +531,16 @@ async function updateCartItem(user, event) {
   if (event.checked !== undefined) {
     item.checked = Boolean(event.checked)
   }
-  await writeCart(user._id, items)
+  await writeCart(user._id, shopId, items)
   return { count: cartCount(items) }
 }
 
 async function setCartCheckedAll(user, event) {
   ensureShopper(user, '只有客户和销售账号可以操作购物车')
+  const shop = user.type === 'KH' ? await resolveShop(user, event.shopId) : null
+  const shopId = shop ? shop._id : 'demo'
   const checked = Boolean(event.checked)
-  const cart = await readCart(user._id)
+  const cart = await readCart(user._id, shopId)
   const rawItems = cart.items || []
   const ids = rawItems.map(item => item.productId).filter(Boolean)
   let productMap = {}
@@ -468,17 +553,19 @@ async function setCartCheckedAll(user, event) {
   const items = rawItems
     .filter(item => canAccessProduct(user, productMap[item.productId]))
     .map(item => ({ ...item, checked }))
-  await writeCart(user._id, items)
+  await writeCart(user._id, shopId, items)
   return { count: cartCount(items) }
 }
 
 async function removeCartItem(user, event) {
   ensureShopper(user, '只有客户和销售账号可以操作购物车')
+  const shop = user.type === 'KH' ? await resolveShop(user, event.shopId) : null
+  const shopId = shop ? shop._id : 'demo'
   const productId = String(event.productId || '')
   if (!productId) throw new Error('缺少商品信息')
-  const cart = await readCart(user._id)
+  const cart = await readCart(user._id, shopId)
   const items = (cart.items || []).filter(item => item.productId !== productId)
-  await writeCart(user._id, items)
+  await writeCart(user._id, shopId, items)
   return { count: cartCount(items) }
 }
 
@@ -523,6 +610,7 @@ async function resolveCheckoutItems(user, rawItems) {
     if (!canAccessProduct(user, product)) throw new Error(`「${product.name}」暂不可购买`)
     return {
       productId: product._id,
+      productCode: product.productCode || '',
       name: product.name,
       spec: product.spec || '',
       price: Number(product.price) || 0,
@@ -539,19 +627,23 @@ async function resolveCheckoutItems(user, rawItems) {
 
 async function getCheckoutPreview(user, event) {
   ensureShopper(user, '只有客户和销售账号可以下单')
+  const shop = user.type === 'KH' ? await resolveShop(user, event.shopId) : null
   const result = await resolveCheckoutItems(user, event.items)
   return {
     ...result,
-    address: user.address || '',
+    address: shop ? shop.address : '',
+    shop: shop ? { _id: shop._id, shopName: shop.shopName, address: shop.address } : null,
     user: sanitizeUser(user)
   }
 }
 
 async function createOrder(user, event, openid) {
   ensureShopper(user, '只有客户和销售账号可以下单')
+  const isDemo = isDemoShopper(user)
+  const shop = user.type === 'KH' ? await resolveShop(user, event.shopId) : null
   const result = await resolveCheckoutItems(user, event.items)
 
-  const address = String(event.address || '').trim()
+  const address = shop ? shop.address : String(event.address || '').trim()
   if (!address) throw new Error('请填写收货地址')
   if (address.length > 200) throw new Error('收货地址请控制在 200 字以内')
 
@@ -559,7 +651,6 @@ async function createOrder(user, event, openid) {
   if (remark.length > 200) throw new Error('备注请控制在 200 字以内')
 
   const source = event.source === 'cart' ? 'cart' : 'direct'
-  const isDemo = isDemoShopper(user)
   const salesIdSnapshot = isDemo ? user._id : (user.salesId || '')
   const salesName = isDemo
     ? (user.name || '')
@@ -574,7 +665,8 @@ async function createOrder(user, event, openid) {
     totalAmount: result.totalAmount,
     customerName: user.name,
     phone: user.phone,
-    shopName: user.shopName || '',
+    shopId: shop ? shop._id : '',
+    shopName: shop ? shop.shopName : '',
     address,
     salesId: salesIdSnapshot,
     salesName,
@@ -601,19 +693,12 @@ async function createOrder(user, event, openid) {
     )
   }
 
-  if (!isDemo && address !== (user.address || '')) {
-    await db
-      .collection('users')
-      .doc(user._id)
-      .update({ data: { address, updatedAt: now } })
-      .catch(err => console.warn('update user address failed', err))
-  }
-
   if (source === 'cart') {
-    const cart = await readCart(user._id)
+    const cartShopId = shop ? shop._id : 'demo'
+    const cart = await readCart(user._id, cartShopId)
     const purchased = new Set(result.items.map(item => item.productId))
     const nextItems = (cart.items || []).filter(item => !purchased.has(item.productId))
-    await writeCart(user._id, nextItems).catch(err => console.warn('clear cart failed', err))
+    await writeCart(user._id, cartShopId, nextItems).catch(err => console.warn('clear cart failed', err))
   }
 
   return {
@@ -629,12 +714,14 @@ function buildStaffOrderWhere(user, event) {
     ? String(user._id)
     : String(event.salesId || '').trim()
   const range = resolveStaffOrderRange(event)
+  const shopId = String(event.shopId || '').trim()
   const where = {
     isDemo: _.neq(true),
     createdAt: _.gte(new Date(range.start)).and(_.lte(new Date(range.end)))
   }
   if (salesId) where.salesId = salesId
   if (customerId) where.userId = customerId
+  if (shopId) where.shopId = shopId
   return where
 }
 
@@ -688,11 +775,37 @@ async function exportStaffOrders(user, event) {
   const orders = res.data
     .slice()
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  await attachOrderProductCodes(orders)
 
   return {
     ...buildOrderExport(orders),
     orderCount: orders.length
   }
+}
+
+async function attachOrderProductCodes(orders) {
+  const ids = []
+  ;(orders || []).forEach(order => {
+    ;(order.items || []).forEach(item => {
+      if (item.productId && !item.productCode) ids.push(item.productId)
+    })
+  })
+  if (!ids.length) return
+  const uniqueIds = Array.from(new Set(ids))
+  const productMap = {}
+  for (let start = 0; start < uniqueIds.length; start += 100) {
+    const chunk = uniqueIds.slice(start, start + 100)
+    const res = await db.collection('products').where({ _id: _.in(chunk) }).limit(chunk.length).get()
+    res.data.forEach(product => {
+      productMap[product._id] = product
+    })
+  }
+  ;(orders || []).forEach(order => {
+    order.items = (order.items || []).map(item => ({
+      ...item,
+      productCode: item.productCode || (productMap[item.productId] && productMap[item.productId].productCode) || ''
+    }))
+  })
 }
 
 async function listSalesOptions(user) {
@@ -709,16 +822,22 @@ async function listCustomerOptions(user) {
     throw new Error('仅销售和管理员可查看客户列表')
   }
   const where = user.type === 'XS'
-    ? { type: 'KH', salesId: String(user._id) }
-    : { type: 'KH' }
+    ? { type: 'KH', salesId: String(user._id), deleted: _.neq(true) }
+    : { type: 'KH', deleted: _.neq(true) }
   const res = await db.collection('users').where(where).limit(1000).get()
+  const shopMap = await listShopsForUsers(res.data.map(item => item._id))
   const list = res.data
-    .map(item => ({
-      _id: item._id,
-      name: item.name || '',
-      phone: item.phone || '',
-      shopName: item.shopName || ''
-    }))
+    .map(item => {
+      const shops = shopMap[item._id] || []
+      const defaultShop = pickDefaultShop(shops)
+      return {
+        _id: item._id,
+        name: item.name || '',
+        phone: item.phone || '',
+        shopName: defaultShop ? defaultShop.shopName : '',
+        shops
+      }
+    })
     .sort((a, b) => String(a.name).localeCompare(String(b.name)))
   return { list }
 }
@@ -729,7 +848,7 @@ async function listMyCustomers(user) {
   const currentStart = chinaMonthStart(0)
   const prevStart = chinaMonthStart(-1)
   const [customerRes, currentRes, prevRes] = await Promise.all([
-    db.collection('users').where({ type: 'KH', salesId: String(user._id) }).limit(1000).get(),
+    db.collection('users').where({ type: 'KH', salesId: String(user._id), deleted: _.neq(true) }).limit(1000).get(),
     db.collection('orders').where({
       salesId: String(user._id),
       status: _.in(['DONE', 'CLOSED']),
@@ -766,9 +885,12 @@ async function listMyCustomers(user) {
   let monthAmount = 0
   let monthOrderCount = 0
   let orderedCustomers = 0
+  const shopMap = await listShopsForUsers(customerRes.data.map(customer => customer._id))
   const list = customerRes.data.map(customer => {
     const current = currentMap.get(customer._id) || { amount: 0, count: 0 }
     const prev = prevMap.get(customer._id) || { amount: 0 }
+    const shops = shopMap[customer._id] || []
+    const defaultShop = pickDefaultShop(shops)
     if (current.count > 0) orderedCustomers += 1
     monthAmount += current.amount
     monthOrderCount += current.count
@@ -776,8 +898,9 @@ async function listMyCustomers(user) {
       userId: customer._id,
       name: customer.name || '',
       phone: customer.phone || '',
-      shopName: customer.shopName || '',
-      address: customer.address || '',
+      shopName: defaultShop ? defaultShop.shopName : '',
+      address: defaultShop ? defaultShop.address : '',
+      shops,
       enabled: customer.enabled !== false,
       salesName: user.name || '',
       monthAmount: current.amount,
@@ -802,25 +925,38 @@ async function listMyCustomers(user) {
   }
 }
 
+async function listCustomerShops(user, event) {
+  if (!['XS', 'GLY'].includes(user.type)) throw new Error('仅销售和管理员可查看客户店铺')
+  if (!event.customerId) throw new Error('缺少客户信息')
+  const customer = user.type === 'XS'
+    ? await getScopedCustomer(user, event.customerId)
+    : await getUserById(event.customerId)
+  if (!customer || customer.type !== 'KH' || customer.deleted === true) throw new Error('客户不存在')
+  return { shops: await listShops(customer._id) }
+}
+
 async function getAssistCustomer(user, event) {
   const customer = await getScopedCustomer(user, event.customerId)
+  const shops = await listShops(customer._id, { enabledOnly: true })
+  const defaultShop = pickDefaultShop(shops)
   return {
     customer: {
       _id: customer._id,
       name: customer.name || '',
       phone: customer.phone || '',
-      shopName: customer.shopName || '',
-      address: customer.address || '',
       enabled: customer.enabled !== false,
       categoryIds: Array.isArray(customer.categoryIds) ? customer.categoryIds : []
-    }
+    },
+    shops,
+    defaultShopId: defaultShop ? defaultShop._id : ''
   }
 }
 
 async function assistAddToCart(user, event) {
   const customer = await getScopedCustomer(user, event.customerId)
+  const shop = await resolveShop(customer, event.shopId)
   const result = await resolveCheckoutItems(customer, event.items)
-  const cart = await readCart(customer._id)
+  const cart = await readCart(customer._id, shop._id)
   const items = (cart.items || []).slice()
   result.items.forEach(item => {
     const existing = items.find(entry => entry.productId === item.productId)
@@ -836,16 +972,17 @@ async function assistAddToCart(user, event) {
       })
     }
   })
-  await writeCart(customer._id, items)
-  return { count: cartCount(items) }
+  await writeCart(customer._id, shop._id, items)
+  return { count: cartCount(items), shopId: shop._id }
 }
 
 async function assistCreateOrder(user, event) {
   const customer = await getScopedCustomer(user, event.customerId)
+  const shop = await resolveShop(customer, event.shopId)
   const result = await resolveCheckoutItems(customer, event.items)
 
-  const address = String(event.address || customer.address || '').trim()
-  if (!address) throw new Error('请填写收货地址')
+  const address = shop.address
+  if (!address) throw new Error('店铺缺少收货地址')
   if (address.length > 200) throw new Error('收货地址请控制在 200 字以内')
   const remark = String(event.remark || '').trim()
   if (remark.length > 200) throw new Error('备注请控制在 200 字以内')
@@ -859,7 +996,8 @@ async function assistCreateOrder(user, event) {
     totalAmount: result.totalAmount,
     customerName: customer.name,
     phone: customer.phone,
-    shopName: customer.shopName || '',
+    shopId: shop._id,
+    shopName: shop.shopName,
     address,
     salesId: user._id,
     salesName: user.name || '',
@@ -884,19 +1022,11 @@ async function assistCreateOrder(user, event) {
     )
   )
 
-  if (address !== (customer.address || '')) {
-    await db
-      .collection('users')
-      .doc(customer._id)
-      .update({ data: { address, updatedAt: now } })
-      .catch(err => console.warn('update customer address failed', err))
-  }
-
-  const cart = await readCart(customer._id)
+  const cart = await readCart(customer._id, shop._id)
   const purchased = new Set(result.items.map(item => item.productId))
   const nextItems = (cart.items || []).filter(item => !purchased.has(item.productId))
   if (nextItems.length !== (cart.items || []).length) {
-    await writeCart(customer._id, nextItems).catch(err => console.warn('clear customer cart failed', err))
+    await writeCart(customer._id, shop._id, nextItems).catch(err => console.warn('clear customer cart failed', err))
   }
 
   return {
@@ -913,6 +1043,8 @@ async function listMyOrders(user, event) {
   const page = toInt(event.page, 1, 1, 10000)
   const pageSize = toInt(event.pageSize, MINI_PAGE_SIZE, 1, 20)
   const where = { userId: user._id }
+  const shopId = String(event.shopId || '').trim()
+  if (shopId) where.shopId = shopId
 
   const listRes = await db
     .collection('orders')
@@ -1018,12 +1150,22 @@ async function handleMini(event, openid) {
         return await getProduct(user, event)
       case 'me':
         return await me(user)
+      case 'listMyShops':
+        return await myShops(user)
+      case 'createShop':
+        return await addShop(user, event)
+      case 'updateShop':
+        return await editShop(user, event)
+      case 'deleteShop':
+        return await removeShop(user, event)
+      case 'setDefaultShop':
+        return await makeDefaultShop(user, event)
       case 'updateProfile':
         return await updateProfile(user, event)
       case 'changePassword':
         return await changePassword(user, event)
       case 'getCart':
-        return await getCart(user)
+        return await getCart(user, event)
       case 'addToCart':
         return await addToCart(user, event)
       case 'updateCartItem':
@@ -1046,6 +1188,8 @@ async function handleMini(event, openid) {
         return await listSalesOptions(user)
       case 'listCustomerOptions':
         return await listCustomerOptions(user)
+      case 'listCustomerShops':
+        return await listCustomerShops(user, event)
       case 'listMyCustomers':
         return await listMyCustomers(user)
       case 'getAssistCustomer':

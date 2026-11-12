@@ -107,6 +107,7 @@
               {{ item.name }}
               <el-tag v-if="!item.onSale" size="small" type="info" effect="plain">已下架</el-tag>
             </div>
+            <div class="muted" v-if="item.spec">{{ item.spec }}</div>
             <div class="muted">
               ¥{{ money(item.price) }} × {{ item.quantity }}
               · {{ item.checked ? '已勾选' : '未勾选' }}

@@ -5,14 +5,14 @@ const {
   updateUser,
   requireLogin
 } = require('../../utils/session')
+const { getShops, saveShops } = require('../../utils/shop')
 
 Page({
   data: {
     phone: '',
     name: '',
-    shopName: '',
-    address: '',
     salesName: '',
+    shopCount: 0,
     isCustomer: false,
     saving: false,
     loading: true
@@ -42,8 +42,7 @@ Page({
       this.setData({
         phone: cached.phone || '',
         name: cached.name || '',
-        shopName: cached.shopName || '',
-        address: cached.address || ''
+        shopCount: getShops().length
       })
     }
     this.load()
@@ -54,12 +53,12 @@ Page({
       const data = await api.call('me')
       const user = data.user
       updateUser(user)
+      if (Array.isArray(data.shops)) saveShops(data.shops)
       this.setData({
         phone: user.phone,
         name: user.name,
-        shopName: user.shopName || '',
-        address: user.address || '',
         salesName: data.salesName || '',
+        shopCount: Array.isArray(data.shops) ? data.shops.length : getShops().length,
         isCustomer: user.type === 'KH',
         loading: false
       })
@@ -74,12 +73,8 @@ Page({
     this.setData({ name: event.detail.value })
   },
 
-  onShopInput(event) {
-    this.setData({ shopName: event.detail.value })
-  },
-
-  onAddressInput(event) {
-    this.setData({ address: event.detail.value })
+  goShops() {
+    wx.navigateTo({ url: '/pages/shops/index' })
   },
 
   async save() {
@@ -89,22 +84,9 @@ Page({
       wx.showToast({ title: '请填写姓名', icon: 'none' })
       return
     }
-    if (this.data.isCustomer && !this.data.shopName.trim()) {
-      wx.showToast({ title: '请填写门店名称', icon: 'none' })
-      return
-    }
-    if (this.data.isCustomer && !this.data.address.trim()) {
-      wx.showToast({ title: '请填写收货地址', icon: 'none' })
-      return
-    }
     this.setData({ saving: true })
     try {
-      const payload = { name }
-      if (this.data.isCustomer) {
-        payload.shopName = this.data.shopName.trim()
-        payload.address = this.data.address.trim()
-      }
-      const data = await api.call('updateProfile', payload)
+      const data = await api.call('updateProfile', { name })
       updateUser(data.user)
       wx.showToast({ title: '已保存', icon: 'success' })
       setTimeout(() => wx.navigateBack(), 500)

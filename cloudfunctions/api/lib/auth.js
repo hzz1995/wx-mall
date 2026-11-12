@@ -7,7 +7,7 @@ async function userFromToken(token) {
   const payload = verifyToken(token)
   if (!payload) throw new AuthError()
   const user = await getUserById(payload.uid)
-  if (!user || user.enabled === false) {
+  if (!user || user.enabled === false || user.deleted === true) {
     throw new AuthError()
   }
   if (!payload.pv || payload.pv !== passwordVersion(user)) {

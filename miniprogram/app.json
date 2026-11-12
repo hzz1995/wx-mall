@@ -10,6 +10,7 @@
     "pages/order-detail/index",
     "pages/customers/index",
     "pages/assist-order/index",
+    "pages/shops/index",
     "pages/profile/index",
     "pages/password/index"
   ],

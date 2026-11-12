@@ -19,7 +19,16 @@ const {
   getSalesMap,
   sanitizeUser
 } = require('../lib/users')
-const { buildOrderExport } = require('../lib/excel')
+const { buildOrderExport, parseSheetRows } = require('../lib/excel')
+const {
+  listShops,
+  createShop,
+  updateShop,
+  deleteShop,
+  setDefaultShop,
+  listShopsForUsers,
+  pickDefaultShop
+} = require('../lib/shops')
 const {
   getSettings,
   saveSettings,
@@ -28,6 +37,7 @@ const {
   sortBySort,
   withTempUrls,
   getTempUrlMap,
+  randomCode,
   generateUniqueProductCode,
   getProductById,
   isCloudFile,
@@ -44,6 +54,7 @@ const MAX_VIDEO_CHUNKS = 64
 const MAX_CHUNK_BYTES = 3 * 1024 * 1024
 const MAX_BOUND_CATEGORIES = 100
 const MAX_EXPORT_SELECTED = 100
+const MAX_IMPORT_ROWS = 2000
 const AUDIT_ACTIONS = [
   'PRODUCT_CREATE',
   'PRODUCT_UPDATE',
@@ -79,6 +90,8 @@ function auditProductSnapshot(product) {
     videos: Array.isArray(product.videos) ? product.videos : [],
     description: product.description || '',
     spec: product.spec || '',
+    unit: product.unit || '',
+    productCode: product.productCode || '',
     validUntil: product.validUntil || '',
     productionDate: product.productionDate || '',
     origin: product.origin || '',
@@ -248,6 +261,12 @@ async function validateProductPayload(body, partial) {
   if (!partial || body.spec !== undefined) {
     data.spec = cleanText(body.spec, 50)
   }
+  if (!partial || body.unit !== undefined) {
+    data.unit = cleanText(body.unit, 20)
+  }
+  if (!partial || body.productCode !== undefined) {
+    data.productCode = cleanText(body.productCode, 50)
+  }
   if (!partial || body.validUntil !== undefined) {
     data.validUntil = cleanText(body.validUntil, 20)
   }
@@ -294,8 +313,8 @@ async function createUserRecord(body) {
   let salesId = ''
   let categoryIds = []
   if (type === 'KH') {
-    if (!shopName) throw new HttpError(400, '客户类型必须填写门店名称')
-    if (!address) throw new HttpError(400, '客户类型必须填写收货地址')
+    if (!shopName) throw new HttpError(400, '客户类型必须填写首个店铺名称')
+    if (!address) throw new HttpError(400, '客户类型必须填写首个店铺收货地址')
     salesId = await validateSalesId(body.salesId, null, true)
     categoryIds = await validateBoundCategoryIds(body.categoryIds)
   }
@@ -305,10 +324,9 @@ async function createUserRecord(body) {
     phone,
     name,
     type,
-    shopName,
-    address,
     salesId,
     categoryIds,
+    shopCount: 0,
     enabled: body.enabled !== false,
     passwordSalt,
     passwordHash,
@@ -316,6 +334,14 @@ async function createUserRecord(body) {
     updatedAt: now
   }
   const res = await db.collection('users').add({ data: record })
+  if (type === 'KH') {
+    try {
+      await createShop(res._id, { shopName, address })
+    } catch (err) {
+      await db.collection('users').doc(String(res._id)).remove().catch(() => null)
+      throw err
+    }
+  }
   return { _id: res._id, ...record }
 }
 
@@ -347,7 +373,7 @@ async function login(body) {
   if (!user || !verifyPassword(body.password, user.passwordSalt, user.passwordHash)) {
     throw new HttpError(401, '手机号或密码错误')
   }
-  if (user.enabled === false) throw new HttpError(403, '账号已停用')
+  if (user.enabled === false || user.deleted === true) throw new HttpError(403, '账号已停用')
   if (!['GLY', 'XS', 'YY'].includes(user.type)) {
     throw new HttpError(403, '客户账号请在小程序登录')
   }
@@ -370,14 +396,24 @@ async function listUsers(query) {
   if (type && !USER_TYPES.includes(type)) throw new HttpError(400, '用户类型不合法')
   const keyword = String(query.keyword || '').trim()
 
-  let where = {}
+  let where = { deleted: _.neq(true) }
   if (keyword) {
     const reg = db.RegExp({ regexp: escapeRegExp(keyword), options: 'i' })
-    const branches = [{ name: reg }, { phone: reg }, { shopName: reg }]
+    const branches = [
+      { name: reg, deleted: _.neq(true) },
+      { phone: reg, deleted: _.neq(true) }
+    ]
+    try {
+      const shopRes = await db.collection('shops').where({ shopName: reg }).limit(1000).get()
+      const shopUserIds = Array.from(new Set(shopRes.data.map(shop => String(shop.userId))))
+      if (shopUserIds.length) branches.push({ _id: _.in(shopUserIds), deleted: _.neq(true) })
+    } catch (err) {
+      console.warn('search shops failed', err)
+    }
     if (type) branches.forEach(branch => { branch.type = type })
     where = _.or(branches)
   } else if (type) {
-    where = { type }
+    where = { type, deleted: _.neq(true) }
   }
 
   const page = toInt(query.page, 1, 1, 100000)
@@ -388,10 +424,20 @@ async function listUsers(query) {
   ])
 
   const salesMap = await getSalesMap(listRes.data.map(user => user.salesId))
-  const list = listRes.data.map(user => ({
-    ...sanitizeUser(user),
-    salesName: (salesMap[user.salesId] || {}).name || ''
-  }))
+  const shopMap = await listShopsForUsers(listRes.data.map(user => user._id))
+  const list = listRes.data.map(user => {
+    const shops = shopMap[user._id] || []
+    const defaultShop = pickDefaultShop(shops)
+    return {
+      ...sanitizeUser(user),
+      salesName: (salesMap[user.salesId] || {}).name || '',
+      shops,
+      defaultShopId: defaultShop ? defaultShop._id : '',
+      shopName: defaultShop ? defaultShop.shopName : '',
+      address: defaultShop ? defaultShop.address : '',
+      shopCount: shops.length
+    }
+  })
 
   return { list, total: countRes.total, page, pageSize }
 }
@@ -403,12 +449,53 @@ async function listSales() {
   }
 }
 
-async function createUser(body) {
-  const user = await createUserRecord(body)
+async function decorateUser(user) {
+  const shops = user.type === 'KH' ? await listShops(user._id) : []
+  const defaultShop = pickDefaultShop(shops)
   const salesMap = await getSalesMap(user.salesId ? [user.salesId] : [])
   return {
-    user: { ...sanitizeUser(user), salesName: (salesMap[user.salesId] || {}).name || '' }
+    ...sanitizeUser(user),
+    salesName: (salesMap[user.salesId] || {}).name || '',
+    shops,
+    defaultShopId: defaultShop ? defaultShop._id : '',
+    shopName: defaultShop ? defaultShop.shopName : '',
+    address: defaultShop ? defaultShop.address : '',
+    shopCount: shops.length
   }
+}
+
+async function listShopOptions(staff, query) {
+  const isSales = staff.type === 'XS'
+  const userWhere = isSales
+    ? { type: 'KH', salesId: staff._id, deleted: _.neq(true) }
+    : { type: 'KH', deleted: _.neq(true) }
+  const keyword = String(query.keyword || '').trim()
+  const userRes = await db.collection('users').where(userWhere).limit(1000).get()
+  const shopMap = await listShopsForUsers(userRes.data.map(user => user._id))
+  const list = []
+  userRes.data.forEach(user => {
+    ;(shopMap[user._id] || []).forEach(shop => {
+      list.push({
+        _id: shop._id,
+        shopName: shop.shopName,
+        address: shop.address,
+        enabled: shop.enabled !== false,
+        userId: user._id,
+        customerName: user.name || '',
+        phone: user.phone || ''
+      })
+    })
+  })
+  const filtered = keyword
+    ? list.filter(item => `${item.shopName}${item.customerName}${item.phone}`.indexOf(keyword) >= 0)
+    : list
+  filtered.sort((a, b) => String(a.shopName).localeCompare(String(b.shopName)))
+  return { list: filtered, truncated: userRes.data.length >= 1000 }
+}
+
+async function createUser(body) {
+  const user = await createUserRecord(body)
+  return { user: await decorateUser(user) }
 }
 
 async function createCustomer(staff, body) {
@@ -427,15 +514,12 @@ async function createCustomer(staff, body) {
     categoryIds: staff.type === 'GLY' ? body.categoryIds : [],
     enabled: body.enabled
   })
-  const salesMap = await getSalesMap(user.salesId ? [user.salesId] : [])
-  return {
-    user: { ...sanitizeUser(user), salesName: (salesMap[user.salesId] || {}).name || '' }
-  }
+  return { user: await decorateUser(user) }
 }
 
 async function updateUser(id, body, admin) {
   const current = await getUserById(id)
-  if (!current) throw new HttpError(404, '用户不存在')
+  if (!current || current.deleted === true) throw new HttpError(404, '用户不存在')
 
   const nextType = body.type !== undefined ? validateUserType(body.type) : current.type
   const nextEnabled = body.enabled !== undefined ? Boolean(body.enabled) : current.enabled !== false
@@ -454,12 +538,6 @@ async function updateUser(id, body, admin) {
     ? await validateSalesId(body.salesId !== undefined ? body.salesId : current.salesId, id, true)
     : ''
 
-  const nextShopName = body.shopName !== undefined ? cleanText(body.shopName, 50) : (current.shopName || '')
-  const nextAddress = body.address !== undefined ? cleanText(body.address, 200) : (current.address || '')
-  if (nextType === 'KH') {
-    if (!nextShopName) throw new HttpError(400, '客户类型必须填写门店名称')
-    if (!nextAddress) throw new HttpError(400, '客户类型必须填写收货地址')
-  }
   const nextCategoryIds = nextType === 'KH'
     ? (body.categoryIds !== undefined
       ? await validateBoundCategoryIds(body.categoryIds)
@@ -469,8 +547,6 @@ async function updateUser(id, body, admin) {
   const data = {
     phone,
     name: body.name !== undefined ? requireText(body.name, '姓名', 20) : current.name,
-    shopName: nextShopName,
-    address: nextAddress,
     type: nextType,
     salesId,
     categoryIds: nextCategoryIds,
@@ -478,15 +554,95 @@ async function updateUser(id, body, admin) {
     updatedAt: new Date()
   }
   await db.collection('users').doc(String(id)).update({ data })
-  const salesMap = await getSalesMap(salesId ? [salesId] : [])
-  return {
-    user: { ...sanitizeUser({ ...current, ...data }), salesName: (salesMap[salesId] || {}).name || '' }
+  return { user: await decorateUser({ ...current, ...data }) }
+}
+
+async function deleteOrder(id) {
+  const order = await getOrderDoc(id)
+  if (!order) throw new HttpError(404, '订单不存在')
+  if (order.status !== 'CANCELLED' && !order.isDemo) {
+    const now = new Date()
+    await Promise.all(
+      (order.items || []).map(item =>
+        db.collection('products').doc(item.productId).update({
+          data: { sales: _.inc(-Number(item.quantity || 0)), updatedAt: now }
+        }).catch(err => console.warn('rollback sales failed', err))
+      )
+    )
   }
+  await db.collection('orders').doc(String(id)).remove()
+  return { ok: true, orderId: id }
+}
+
+async function removeWhere(collectionName, where) {
+  let removed = 0
+  for (let round = 0; round < 20; round += 1) {
+    const res = await db.collection(collectionName).where(where).limit(100).get()
+    if (!res.data.length) break
+    await Promise.all(
+      res.data.map(doc => db.collection(collectionName).doc(String(doc._id)).remove().catch(() => null))
+    )
+    removed += res.data.length
+    if (res.data.length < 100) break
+  }
+  return removed
+}
+
+async function deleteUser(id, admin) {
+  if (String(id) === String(admin._id)) throw new HttpError(400, '不能删除当前登录账号')
+  const user = await getUserById(id)
+  if (!user || user.deleted === true) throw new HttpError(404, '用户不存在')
+  const now = new Date()
+
+  try {
+    await removeWhere('shops', { userId: String(id) })
+  } catch (err) {
+    console.warn('remove user shops failed', err)
+  }
+  try {
+    await removeWhere('carts', { userId: String(id) })
+  } catch (err) {
+    console.warn('remove user carts failed', err)
+  }
+
+  if (user.type === 'XS') {
+    for (let round = 0; round < 20; round += 1) {
+      const res = await db.collection('users').where({
+        type: 'KH',
+        salesId: String(id),
+        deleted: _.neq(true)
+      }).limit(100).get()
+      if (!res.data.length) break
+      await Promise.all(
+        res.data.map(item =>
+          db.collection('users').doc(String(item._id)).update({
+            data: { salesId: '', updatedAt: now }
+          })
+        )
+      )
+      if (res.data.length < 100) break
+    }
+  }
+
+  await db.collection('users').doc(String(id)).update({
+    data: {
+      deleted: true,
+      enabled: false,
+      deletedAt: now,
+      deletedPhone: user.phone || '',
+      phone: `deleted_${String(id)}`,
+      passwordSalt: '',
+      passwordHash: '',
+      shopCount: 0,
+      updatedAt: now
+    }
+  })
+  return { ok: true, userId: id, softDeleted: true }
 }
 
 async function resetUserPassword(id, body) {
   const user = await getUserById(id)
-  if (!user) throw new HttpError(404, '用户不存在')
+  if (!user || user.deleted === true) throw new HttpError(404, '用户不存在')
   const rawPassword = body.password === undefined || body.password === '' ? '123456' : body.password
   const password = validateNewPassword(rawPassword)
   const { passwordSalt, passwordHash } = hashPassword(password)
@@ -540,6 +696,7 @@ function buildOrderWhere(query, staff) {
     throw new HttpError(400, '订单类型不合法')
   }
   const salesId = staff.type === 'XS' ? String(staff._id) : String(query.salesId || '').trim()
+  const shopId = String(query.shopId || '').trim()
   const keyword = String(query.keyword || '').trim()
   const demoFilter = orderType === 'demo' ? true : (orderType === 'normal' ? _.neq(true) : null)
 
@@ -548,12 +705,14 @@ function buildOrderWhere(query, staff) {
     const branches = [{ customerName: reg }, { phone: reg }, { orderNo: reg }, { shopName: reg }]
     if (status) branches.forEach(branch => { branch.status = status })
     if (salesId) branches.forEach(branch => { branch.salesId = salesId })
+    if (shopId) branches.forEach(branch => { branch.shopId = shopId })
     if (demoFilter !== null) branches.forEach(branch => { branch.isDemo = demoFilter })
     return _.or(branches)
   }
   const where = {}
   if (status) where.status = status
   if (salesId) where.salesId = salesId
+  if (shopId) where.shopId = shopId
   if (demoFilter !== null) where.isDemo = demoFilter
   return where
 }
@@ -594,11 +753,29 @@ async function exportOrders(query, staff) {
   const orders = res.data
     .slice()
     .sort((a, b) => toTimestamp(b.createdAt) - toTimestamp(a.createdAt))
+  await attachOrderProductCodes(orders)
 
   return {
     ...buildOrderExport(orders),
     orderCount: orders.length
   }
+}
+
+async function attachOrderProductCodes(orders) {
+  const ids = []
+  ;(orders || []).forEach(order => {
+    ;(order.items || []).forEach(item => {
+      if (item.productId && !item.productCode) ids.push(item.productId)
+    })
+  })
+  if (!ids.length) return
+  const productMap = await getProductsByIds(ids)
+  ;(orders || []).forEach(order => {
+    order.items = (order.items || []).map(item => ({
+      ...item,
+      productCode: item.productCode || (productMap[item.productId] && productMap[item.productId].productCode) || ''
+    }))
+  })
 }
 
 async function getOrderDoc(id) {
@@ -686,15 +863,23 @@ async function listProducts(query) {
   if (uniqueIds.length) {
     where._id = _.in(uniqueIds)
   } else {
-    const base = {}
-    if (keyword) base.name = db.RegExp({ regexp: escapeRegExp(keyword), options: 'i' })
-    if (categoryId) {
+    const reg = keyword
+      ? db.RegExp({ regexp: escapeRegExp(keyword), options: 'i' })
+      : null
+    if (keyword && categoryId) {
       where = _.or([
-        { ...base, categoryId },
-        { ...base, categoryIds: _.in([categoryId]) }
+        { name: reg, categoryId },
+        { name: reg, categoryIds: _.in([categoryId]) },
+        { productCode: reg, categoryId },
+        { productCode: reg, categoryIds: _.in([categoryId]) }
       ])
-    } else {
-      where = base
+    } else if (keyword) {
+      where = _.or([{ name: reg }, { productCode: reg }])
+    } else if (categoryId) {
+      where = _.or([
+        { categoryId },
+        { categoryIds: _.in([categoryId]) }
+      ])
     }
   }
 
@@ -718,8 +903,17 @@ async function listProducts(query) {
   }
 }
 
+async function ensureUniqueProductCode(productCode, excludeId) {
+  const code = String(productCode || '').trim()
+  if (!code) return
+  const res = await db.collection('products').where({ productCode: code }).limit(2).get()
+  const conflict = res.data.find(item => String(item._id) !== String(excludeId || ''))
+  if (conflict) throw new HttpError(400, `商品编码「${code}」已存在`)
+}
+
 async function createProduct(body, staff) {
   const data = await validateProductPayload(body, false)
+  await ensureUniqueProductCode(data.productCode)
   const now = new Date()
   const record = {
     ...data,
@@ -745,6 +939,9 @@ async function updateProduct(id, body, staff) {
   if (!existing) throw new HttpError(404, '商品不存在')
   const before = auditProductSnapshot(existing)
   const data = await validateProductPayload(body, true)
+  if (data.productCode !== undefined) {
+    await ensureUniqueProductCode(data.productCode, id)
+  }
   const oldInitialSales = Number(existing.initialSales) || 0
   const salesDelta = data.initialSales !== undefined ? data.initialSales - oldInitialSales : 0
   const now = new Date()
@@ -789,7 +986,9 @@ function normalizeBatchValue(field, value) {
   if (field === 'validUntil' || field === 'productionDate') return cleanText(value, 20)
   if (field === 'origin') return cleanText(value, 50)
   if (field === 'spec') return cleanText(value, 50)
+  if (field === 'unit') return cleanText(value, 20)
   if (field === 'sort') return parseSort(value)
+  if (field === 'images') return normalizeMedia(value, '图片', MAX_IMAGES)
   throw new HttpError(400, '不支持批量修改该属性')
 }
 
@@ -846,6 +1045,359 @@ async function batchUpdateProducts(body, staff) {
   }))
 
   return auditWarning ? { updated, auditWarning } : { updated }
+}
+
+function importCell(row, aliases) {
+  const keys = Object.keys(row || {})
+  for (const alias of aliases) {
+    if (Object.prototype.hasOwnProperty.call(row, alias)) return row[alias]
+  }
+  const normalized = {}
+  keys.forEach(key => {
+    normalized[String(key).replace(/^\ufeff/, '').replace(/\s+/g, '')] = row[key]
+  })
+  for (const alias of aliases) {
+    const key = String(alias).replace(/^\ufeff/, '').replace(/\s+/g, '')
+    if (Object.prototype.hasOwnProperty.call(normalized, key)) return normalized[key]
+  }
+  return ''
+}
+
+function isEmptyImportCell(value) {
+  return value == null || (typeof value === 'string' && !value.trim())
+}
+
+function parseImportPrice(value, label) {
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value) || value < 0) throw new Error(`${label}格式不正确`)
+    const cents = Math.round(value * 100)
+    if (cents > 99999999) throw new Error(`${label}超出范围`)
+    return cents
+  }
+  const text = String(value == null ? '' : value).replace(/[¥￥,，\s]/g, '')
+  if (!text) return null
+  if (!/^\d+(\.\d{1,2})?$/.test(text)) throw new Error(`${label}格式不正确`)
+  const cents = Math.round(Number(text) * 100)
+  if (!Number.isInteger(cents) || cents < 0 || cents > 99999999) {
+    throw new Error(`${label}超出范围`)
+  }
+  return cents
+}
+
+function formatImportValue(field, value) {
+  if (field === 'price' || field === 'originalPrice') {
+    return `¥${(Number(value || 0) / 100).toFixed(2)}`
+  }
+  return String(value == null || value === '' ? '—' : value)
+}
+
+async function importProducts(body, staff) {
+  const base64 = String((body && body.fileBase64) || '').replace(/^data:[^,]+,/, '')
+  if (!base64) throw new HttpError(400, '请选择导入文件')
+  let buffer
+  try {
+    buffer = Buffer.from(base64, 'base64')
+  } catch (err) {
+    throw new HttpError(400, '导入文件格式不正确')
+  }
+  if (!buffer || !buffer.length) throw new HttpError(400, '导入文件为空')
+  if (buffer.length > 5 * 1024 * 1024) throw new HttpError(400, '导入文件不能超过 5MB')
+
+  let rawRows
+  try {
+    rawRows = parseSheetRows(buffer)
+  } catch (err) {
+    throw new HttpError(400, `无法解析导入文件：${err.message}`)
+  }
+  rawRows = (rawRows || []).filter(row => row && Object.keys(row).some(key => !isEmptyImportCell(row[key])))
+  if (!rawRows.length) throw new HttpError(400, '导入文件没有数据')
+  if (rawRows.length > MAX_IMPORT_ROWS) {
+    throw new HttpError(400, `一次最多导入 ${MAX_IMPORT_ROWS} 行`)
+  }
+  if (body.metaOnly === true) {
+    const seenCodes = new Set()
+    const duplicateCodes = []
+    rawRows.forEach((row, index) => {
+      const productCode = cleanText(importCell(row, ['商品编码', '编码', 'productCode']), 50)
+      if (!productCode) return
+      if (seenCodes.has(productCode)) {
+        duplicateCodes.push({ row: index + 2, productCode })
+      } else {
+        seenCodes.add(productCode)
+      }
+    })
+    return { totalRows: rawRows.length, duplicateCodes }
+  }
+  const defaultCategoryId = String(body.defaultCategoryId || '').trim()
+  if (defaultCategoryId && (body.rowOffset === undefined || Number(body.rowOffset) === 0)) {
+    const category = await db.collection('categories').doc(defaultCategoryId).get().catch(() => null)
+    if (!category || !category.data) throw new HttpError(400, '默认分类不存在')
+  }
+
+  const errors = []
+  const prepared = []
+  const seenCodes = new Set()
+  const rawRowOffset = Number(body.rowOffset)
+  const rowOffset = Number.isFinite(rawRowOffset) && rawRowOffset > 0 ? Math.floor(rawRowOffset) : 0
+  const rawRowLimit = Number(body.rowLimit)
+  const rowLimit = Number.isFinite(rawRowLimit) && rawRowLimit > 0
+    ? Math.min(50, Math.floor(rawRowLimit))
+    : rawRows.length
+  const selectedRows = body.rowOffset !== undefined
+    ? rawRows.slice(rowOffset, rowOffset + rowLimit)
+    : rawRows
+  selectedRows.forEach((row, index) => {
+    const rowNo = rowOffset + index + 2
+    try {
+      const productCode = cleanText(importCell(row, ['商品编码', '编码', 'productCode']), 50)
+      if (!productCode) throw new Error('缺少商品编码')
+      if (seenCodes.has(productCode)) throw new Error(`商品编码「${productCode}」在文件中重复`)
+      seenCodes.add(productCode)
+
+      const changes = {}
+      const name = importCell(row, ['商品名称', '名称', 'name'])
+      let nameValue = ''
+      if (!isEmptyImportCell(name)) {
+        nameValue = requireText(name, '商品名称', 50)
+        changes.name = nameValue
+      }
+      const spec = importCell(row, ['规格', '规格型号', 'spec'])
+      if (!isEmptyImportCell(spec)) changes.spec = cleanText(spec, 50)
+      const unit = importCell(row, ['单位', 'unit'])
+      if (!isEmptyImportCell(unit)) changes.unit = cleanText(unit, 20)
+      const originalPrice = importCell(row, ['原价', '划线价', 'originalPrice'])
+      if (!isEmptyImportCell(originalPrice)) {
+        changes.originalPrice = parseImportPrice(originalPrice, '原价')
+      }
+      const price = importCell(row, ['售价', '价格', 'price'])
+      if (!isEmptyImportCell(price)) {
+        changes.price = parseImportPrice(price, '售价')
+      }
+      prepared.push({ rowNo, productCode, nameValue, changes })
+    } catch (err) {
+      errors.push({ row: rowNo, message: err.message })
+    }
+  })
+
+  const codes = Array.from(new Set(prepared.map(item => item.productCode)))
+  const productMap = new Map()
+  const duplicateProductCodes = new Set()
+  for (let start = 0; start < codes.length; start += 100) {
+    const chunk = codes.slice(start, start + 100)
+    const res = await db.collection('products').where({ productCode: _.in(chunk) }).limit(1000).get()
+    res.data.forEach(product => {
+      const code = String(product.productCode || '')
+      if (!code) return
+      if (productMap.has(code)) duplicateProductCodes.add(code)
+      else productMap.set(code, product)
+    })
+  }
+
+  const nameCandidates = Array.from(new Set(
+    prepared
+      .filter(item => !productMap.has(item.productCode) && item.nameValue)
+      .map(item => item.nameValue)
+  ))
+  const nameMap = new Map()
+  for (let start = 0; start < nameCandidates.length; start += 100) {
+    const chunk = nameCandidates.slice(start, start + 100)
+    const res = await db.collection('products').where({ name: _.in(chunk) }).limit(1000).get()
+    res.data.forEach(product => {
+      const name = String(product.name || '')
+      if (!nameMap.has(name)) nameMap.set(name, [])
+      nameMap.get(name).push(product)
+    })
+  }
+
+  const preview = []
+  const tasks = []
+  const usedProducts = new Set()
+  let matched = 0
+  let unchanged = 0
+  let createdCount = 0
+  let updatedCount = 0
+  prepared.forEach(item => {
+    if (duplicateProductCodes.has(item.productCode)) {
+      errors.push({ row: item.rowNo, message: `商品编码「${item.productCode}」对应多个商品` })
+      return
+    }
+    let product = productMap.get(item.productCode)
+    if (!product && item.nameValue) {
+      const candidates = (nameMap.get(item.nameValue) || []).filter(candidate => {
+        return !String(candidate.productCode || '').trim() && !usedProducts.has(String(candidate._id))
+      })
+      if (candidates.length === 1) {
+        product = candidates[0]
+        item.changes.productCode = item.productCode
+      } else if (candidates.length > 1) {
+        errors.push({
+          row: item.rowNo,
+          message: `商品名称「${item.nameValue}」匹配到多个无编码商品，请先维护商品编码`
+        })
+        return
+      }
+    }
+
+    const labels = {
+      productCode: '商品编码',
+      name: '商品名称',
+      spec: '规格',
+      unit: '单位',
+      originalPrice: '原价',
+      price: '售价'
+    }
+
+    if (!product) {
+      if (!item.nameValue) {
+        errors.push({ row: item.rowNo, message: '商品不存在，且缺少商品名称，无法新增' })
+        return
+      }
+      if (item.changes.price === undefined) {
+        errors.push({ row: item.rowNo, message: '新商品缺少售价，无法新增' })
+        return
+      }
+      const createChanges = { ...item.changes, productCode: item.productCode }
+      const changeText = Object.keys(createChanges)
+        .map(field => `${labels[field]}：— → ${formatImportValue(field, createChanges[field])}`)
+        .join('；')
+      preview.push({
+        row: item.rowNo,
+        productCode: item.productCode,
+        productName: item.nameValue,
+        action: 'create',
+        changeText
+      })
+      createdCount += 1
+      tasks.push({ type: 'create', rowNo: item.rowNo, changes: createChanges })
+      return
+    }
+
+    usedProducts.add(String(product._id))
+    matched += 1
+    const fields = Object.keys(item.changes)
+    if (!fields.length) {
+      unchanged += 1
+      preview.push({
+        row: item.rowNo,
+        productCode: item.productCode,
+        productName: product.name || '',
+        action: 'unchanged',
+        changeText: '无变化'
+      })
+      return
+    }
+    const changeText = fields
+      .map(field => `${labels[field]}：${formatImportValue(field, product[field])} → ${formatImportValue(field, item.changes[field])}`)
+      .join('；')
+    preview.push({
+      row: item.rowNo,
+      productCode: item.productCode,
+      productName: product.name || '',
+      action: 'update',
+      changeText
+    })
+    updatedCount += 1
+    tasks.push({ type: 'update', rowNo: item.rowNo, changes: item.changes, product })
+  })
+
+  const summary = {
+    total: rawRows.length,
+    processedRows: selectedRows.length,
+    matched,
+    created: createdCount,
+    updated: updatedCount,
+    unchanged,
+    taskTotal: tasks.length,
+    errors
+  }
+  if (body.dryRun !== false) {
+    const previewLimit = 500
+    return {
+      ...summary,
+      dryRun: true,
+      preview: preview.slice(0, previewLimit),
+      previewTotal: preview.length,
+      previewTruncated: preview.length > previewLimit
+    }
+  }
+
+  const now = new Date()
+  const chunk = tasks
+  const chunkErrors = []
+  let applied = 0
+  let createdApplied = 0
+
+  const updateChunk = chunk.filter(task => task.type === 'update')
+  const createChunk = chunk.filter(task => task.type === 'create')
+
+  for (let start = 0; start < updateChunk.length; start += 20) {
+    await Promise.all(updateChunk.slice(start, start + 20).map(async task => {
+      try {
+        await db.collection('products').doc(String(task.product._id)).update({
+          data: { ...task.changes, updatedAt: now }
+        })
+        applied += 1
+      } catch (err) {
+        chunkErrors.push({ row: task.rowNo, message: err.message || '更新失败' })
+      }
+    }))
+  }
+  for (let start = 0; start < createChunk.length; start += 20) {
+    await Promise.all(createChunk.slice(start, start + 20).map(async task => {
+      try {
+        const changes = task.changes
+        await db.collection('products').add({
+          data: {
+            productCode: changes.productCode,
+            name: changes.name,
+            spec: changes.spec || '',
+            unit: changes.unit || '',
+            originalPrice: changes.originalPrice == null ? 0 : changes.originalPrice,
+            price: changes.price,
+            categoryIds: defaultCategoryId ? [defaultCategoryId] : [],
+            categoryId: defaultCategoryId || '',
+            images: [],
+            videos: [],
+            description: '',
+            status: 'ON',
+            code: randomCode(),
+            initialSales: 0,
+            sales: 0,
+            sort: 0,
+            createdAt: now,
+            updatedAt: now
+          }
+        })
+        createdApplied += 1
+      } catch (err) {
+        chunkErrors.push({ row: task.rowNo, message: err.message || '新增失败' })
+      }
+    }))
+  }
+  if (rowOffset + selectedRows.length >= rawRows.length) {
+    writeAuditLog({
+      ...auditBase(staff, 'PRODUCT_UPDATE', 'product', 'import', body.filename || '商品导入'),
+      before: null,
+      after: {
+        rowOffset,
+        rowLimit,
+        processedRows: selectedRows.length,
+        created: createdApplied,
+        updated: applied,
+        taskTotal: tasks.length
+      }
+    }).catch(err => console.warn('write import audit failed', err))
+  }
+  return {
+    dryRun: false,
+    rowOffset,
+    rowLimit,
+    processedRows: selectedRows.length,
+    totalRows: rawRows.length,
+    updated: applied,
+    created: createdApplied,
+    errors: errors.concat(chunkErrors)
+  }
 }
 
 async function listCategories() {
@@ -1012,20 +1564,26 @@ async function listCustomers(staff, query) {
   const isSales = staff.type === 'XS'
   const requestedSalesId = String(query.salesId || '').trim()
   const salesId = isSales ? String(staff._id) : requestedSalesId
-  const userWhere = salesId ? { type: 'KH', salesId } : { type: 'KH' }
+  const userWhere = salesId
+    ? { type: 'KH', salesId, deleted: _.neq(true) }
+    : { type: 'KH', deleted: _.neq(true) }
   const [userRes, orderRes] = await Promise.all([
     db.collection('users').where(userWhere).limit(1000).get(),
     db.collection('orders').where({ status: _.in(['DONE', 'CLOSED']), isDemo: _.neq(true) }).orderBy('createdAt', 'desc').limit(1000).get()
   ])
 
   const map = new Map()
+  const shopMap = await listShopsForUsers(userRes.data.map(user => user._id))
   userRes.data.forEach(user => {
+    const shops = shopMap[user._id] || []
+    const defaultShop = pickDefaultShop(shops)
     map.set(user._id, {
       userId: user._id,
       name: user.name,
       phone: user.phone,
-      shopName: user.shopName || '',
-      address: user.address || '',
+      shopName: defaultShop ? defaultShop.shopName : '',
+      address: defaultShop ? defaultShop.address : '',
+      shops,
       salesId: user.salesId || '',
       enabled: user.enabled !== false,
       orderCount: 0,
@@ -1088,6 +1646,7 @@ function resolveReportRange(query) {
 async function getReports(query) {
   const range = resolveReportRange(query)
   const salesId = String((query && query.salesId) || '').trim()
+  const shopId = String((query && query.shopId) || '').trim()
   const shopName = String((query && query.shopName) || '').trim().slice(0, 50)
   const orderWhere = {
     status: _.in(['DONE', 'CLOSED']),
@@ -1095,6 +1654,7 @@ async function getReports(query) {
     createdAt: _.gte(new Date(range.start)).and(_.lte(new Date(range.end)))
   }
   if (salesId) orderWhere.salesId = salesId
+  if (shopId) orderWhere.shopId = shopId
   if (shopName) orderWhere.shopName = db.RegExp({ regexp: escapeRegExp(shopName), options: 'i' })
 
   const countRes = await db.collection('orders').where(orderWhere).count()
@@ -1248,13 +1808,14 @@ async function listCarts(staff, query) {
   const pageSize = toInt(query.pageSize, 10, 1, 100)
 
   const userQuery = isSales
-    ? db.collection('users').where({ type: 'KH', salesId: staff._id })
-    : db.collection('users')
+    ? db.collection('users').where({ type: 'KH', salesId: staff._id, deleted: _.neq(true) })
+    : db.collection('users').where({ type: 'KH', deleted: _.neq(true) })
   const userRes = await userQuery.limit(1000).get()
   const userMap = {}
   userRes.data.forEach(user => {
     userMap[user._id] = user
   })
+  const shopMap = await listShopsForUsers(userRes.data.map(user => user._id))
 
   const cartRes = await db.collection('carts').orderBy('updatedAt', 'desc').limit(500).get()
   const cartProductIds = []
@@ -1269,11 +1830,14 @@ async function listCarts(staff, query) {
     .filter(cart => Array.isArray(cart.items) && cart.items.length && userMap[cart.userId])
     .map(cart => {
       const user = userMap[cart.userId]
+      const shops = shopMap[cart.userId] || []
+      const shop = shops.find(item => String(item._id) === String(cart.shopId)) || pickDefaultShop(shops)
       const items = cart.items.map(item => {
         const product = productMap[item.productId]
         return {
           productId: item.productId,
           name: product ? product.name : '商品已删除',
+          spec: product ? product.spec || '' : '',
           price: product ? Number(product.price) || 0 : 0,
           quantity: Number(item.quantity) || 0,
           checked: item.checked !== false,
@@ -1285,8 +1849,9 @@ async function listCarts(staff, query) {
         userId: cart.userId,
         userName: user.name || '',
         phone: user.phone || '',
-        shopName: user.shopName || '',
-        address: user.address || '',
+        shopId: shop ? shop._id : '',
+        shopName: shop ? shop.shopName : '',
+        address: shop ? shop.address : '',
         salesId: user.salesId || '',
         items,
         hasOffSale: items.some(item => !item.onSale),
@@ -1515,6 +2080,10 @@ async function route({ method, path, query, headers, body }) {
       }
       return updateOrderStatus(id, status)
     }
+    if (method === 'DELETE' && id) {
+      if (!isAdmin) throw new HttpError(403, '仅管理员可删除订单')
+      return deleteOrder(id)
+    }
   }
   if (resource === 'customers') {
     if (!canViewSalesData) throw new HttpError(403, '无权操作客户')
@@ -1526,10 +2095,16 @@ async function route({ method, path, query, headers, body }) {
     return listCarts(staff, query)
   }
 
+  if (resource === 'shops' && method === 'GET') {
+    if (!canViewSalesData) throw new HttpError(403, '无权查看店铺')
+    return listShopOptions(staff, query)
+  }
+
   if (resource === 'products') {
     if (!isAdmin && !isOps) throw new HttpError(403, '无权操作商品')
     if (method === 'GET' && !id) return listProducts(query)
     if (method === 'POST' && id === 'batch') return batchUpdateProducts(body, staff)
+    if (method === 'POST' && id === 'import') return importProducts(body, staff)
     if (method === 'POST' && !id) return createProduct(body, staff)
     if (method === 'PUT' && id) return updateProduct(id, body, staff)
     if (method === 'DELETE' && id) return deleteProduct(id, staff)
@@ -1561,10 +2136,38 @@ async function route({ method, path, query, headers, body }) {
   }
 
   if (resource === 'users') {
+    if (segments[2] === 'shops') {
+      const target = await getUserById(id)
+      if (!target || target.type !== 'KH' || target.deleted === true) throw new HttpError(404, '客户不存在')
+      const shopId = segments[3] || ''
+      const action = segments[4] || ''
+      if (method === 'GET' && !shopId) {
+        const shops = await listShops(id)
+        const defaultShop = pickDefaultShop(shops)
+        return { shops, defaultShopId: defaultShop ? defaultShop._id : '' }
+      }
+      if (method === 'POST' && !shopId) {
+        const shop = await createShop(id, body)
+        return { shop, shops: await listShops(id) }
+      }
+      if (method === 'PUT' && shopId) {
+        const shop = await updateShop(id, shopId, body)
+        return { shop, shops: await listShops(id) }
+      }
+      if (method === 'DELETE' && shopId) {
+        await deleteShop(id, shopId)
+        return { shops: await listShops(id) }
+      }
+      if (method === 'POST' && shopId && action === 'default') {
+        const shop = await setDefaultShop(id, shopId)
+        return { shop, shops: await listShops(id) }
+      }
+    }
     if (method === 'GET' && !id) return listUsers(query)
     if (method === 'GET' && id === 'sales') return listSales()
     if (method === 'POST' && !id) return createUser(body)
     if (method === 'PUT' && id) return updateUser(id, body, staff)
+    if (method === 'DELETE' && id && !segments[2]) return deleteUser(id, staff)
     if (method === 'POST' && id && segments[2] === 'password') return resetUserPassword(id, body)
   }
   if (resource === 'settings') {

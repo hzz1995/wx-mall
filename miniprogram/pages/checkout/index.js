@@ -3,10 +3,10 @@ const { formatPrice } = require('../../utils/format')
 const {
   getToken,
   getUser,
-  requireLogin,
-  updateUser
+  requireLogin
 } = require('../../utils/session')
 const { refreshCartBadge } = require('../../utils/cart')
+const { getActiveShopId } = require('../../utils/shop')
 
 Page({
   data: {
@@ -15,6 +15,8 @@ Page({
     address: '',
     remark: '',
     user: null,
+    shop: null,
+    isKh: false,
     source: 'direct',
     editable: false,
     loading: true,
@@ -56,14 +58,25 @@ Page({
     }))
     this.source = payload.source === 'cart' ? 'cart' : 'direct'
     this.editable = payload.editable === true
-    this.setData({ editable: this.editable })
+    const user = getUser() || {}
+    this.isKh = user.type === 'KH'
+    this.payloadShopId = payload.shopId || ''
+    this.setData({ editable: this.editable, isKh: this.isKh })
     this.loadPreview()
   },
 
   async loadPreview() {
     try {
-      const data = await api.call('getCheckoutPreview', { items: this.rawItems })
-      const cached = getUser() || {}
+      const shopId = this.isKh ? (this.payloadShopId || getActiveShopId()) : ''
+      if (this.isKh && !shopId) {
+        this.setData({ loading: false, error: '请先添加店铺' })
+        return
+      }
+      this.payloadShopId = shopId
+      const data = await api.call(
+        'getCheckoutPreview',
+        shopId ? { items: this.rawItems, shopId } : { items: this.rawItems }
+      )
       const items = (data.items || []).map(item => ({
         ...item,
         priceText: formatPrice(item.price),
@@ -77,8 +90,9 @@ Page({
       this.setData({
         items,
         totalText: formatPrice(data.totalAmount || 0),
-        address: data.address || cached.address || '',
-        user: data.user || cached,
+        address: data.address || '',
+        shop: data.shop || {},
+        user: data.user || getUser(),
         source: this.source,
         loading: false
       })
@@ -130,29 +144,42 @@ Page({
   async submit() {
     if (this.data.submitting || !this.data.items.length) return
     const address = this.data.address.trim()
-    if (!address) {
+    if (this.data.isKh && !this.payloadShopId) {
+      wx.showToast({ title: '请先添加店铺', icon: 'none' })
+      return
+    }
+    if (!this.data.isKh && !address) {
       wx.showToast({ title: '请填写收货地址', icon: 'none' })
       return
     }
 
     this.setData({ submitting: true })
     try {
-      const result = await api.call('createOrder', {
+      const payload = {
         items: this.rawItems,
         source: this.source,
-        address,
         remark: this.data.remark.trim()
-      })
+      }
+      if (this.data.isKh) {
+        payload.shopId = this.payloadShopId
+      } else {
+        payload.address = address
+      }
+      const result = await api.call('createOrder', payload)
 
-      const cached = getUser()
-      if (cached) updateUser({ ...cached, address })
       wx.removeStorageSync('mall_checkout')
-      if (this.source === 'cart') refreshCartBadge()
+      if (this.source === 'cart') {
+        refreshCartBadge(0, this.data.isKh ? this.payloadShopId : '')
+      }
       wx.redirectTo({ url: `/pages/order-detail/index?id=${result.orderId}&created=1` })
     } catch (err) {
       this.setData({ submitting: false })
       api.toastError(err)
     }
+  },
+
+  goShops() {
+    wx.navigateTo({ url: '/pages/shops/index' })
   },
 
   goCart() {

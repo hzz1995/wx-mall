@@ -11,8 +11,11 @@
         <view class="customer-name">{{customer.name || '未填写'}}</view>
         <view class="status {{customer.enabled ? 'on' : 'off'}}">{{customer.enabled ? '正常' : '停用'}}</view>
       </view>
-      <view class="customer-meta">{{customer.shopName || '未填写店铺'}} · {{customer.phone || '—'}}</view>
-      <view class="customer-address">{{customer.address || '未填写收货地址'}}</view>
+      <view class="customer-meta">{{customer.phone || '—'}}</view>
+      <view class="customer-shops" wx:if="{{shops.length}}">
+        <text class="shop-chip" wx:for="{{shops}}" wx:for-item="shop" wx:key="_id">{{shop.shopName}}</text>
+      </view>
+      <view class="customer-address" wx:if="{{address}}">{{address}}</view>
       <view class="binding-hint" wx:if="{{customer.categoryIds.length}}">该客户仅可购买绑定分类商品</view>
     </view>
 
@@ -82,16 +85,18 @@
 
     <view class="section-title">下单信息</view>
     <view class="form-card">
-      <view class="form-label">收货地址</view>
-      <textarea
-        class="form-textarea"
-        value="{{address}}"
-        maxlength="200"
-        auto-height
-        bindinput="onAddressInput"
-        placeholder="请输入收货地址"
-        placeholder-class="form-placeholder"
-      />
+      <view class="form-label">客户店铺</view>
+      <picker
+        wx:if="{{shopNames.length > 1}}"
+        mode="selector"
+        range="{{shopNames}}"
+        value="{{shopIndex}}"
+        bindchange="onShopChange"
+      >
+        <view class="form-shop-picker">{{shopName}} ▾</view>
+      </picker>
+      <view wx:else class="form-shop">{{shopName || '—'}}</view>
+      <view class="form-address">{{address || '该店铺未填写收货地址'}}</view>
       <view class="form-label">备注</view>
       <textarea
         class="form-textarea short"

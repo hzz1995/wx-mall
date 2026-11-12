@@ -7,6 +7,7 @@ const {
   requireLogin
 } = require('../../utils/session')
 const { syncCartBadge, refreshCartBadge } = require('../../utils/cart')
+const { getShops, saveShops, getActiveShop, getActiveShopId, setActiveShopId } = require('../../utils/shop')
 
 const PAGE_SIZE = 10
 
@@ -21,6 +22,12 @@ Page({
     hasMore: true,
     cartCount: 0,
     canShop: false,
+    isCustomer: false,
+    shops: [],
+    shopNames: [],
+    shopIndex: 0,
+    shopCount: 0,
+    activeShop: null,
     addingId: '',
     qtyVisible: false,
     qtyProduct: {},
@@ -36,7 +43,11 @@ Page({
   onLoad() {
     if (!requireLogin('/pages/products/index')) return
     const user = getUser()
-    this.setData({ canShop: Boolean(user && ['KH', 'XS'].includes(user.type)) })
+    this.setData({
+      canShop: Boolean(user && ['KH', 'XS'].includes(user.type)),
+      isCustomer: Boolean(user && user.type === 'KH')
+    })
+    this.applyShops(getShops())
     const cached = this.readHomeCache()
     if (cached) this.applyHome(cached)
     this.load()
@@ -48,7 +59,11 @@ Page({
       return
     }
     const user = getUser()
-    this.setData({ canShop: Boolean(user && ['KH', 'XS'].includes(user.type)) })
+    this.setData({
+      canShop: Boolean(user && ['KH', 'XS'].includes(user.type)),
+      isCustomer: Boolean(user && user.type === 'KH')
+    })
+    this.applyShops(getShops())
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({ selected: 0 })
     }
@@ -128,6 +143,33 @@ Page({
     }
   },
 
+  applyShops(shops) {
+    const list = Array.isArray(shops) ? shops : []
+    const enabled = list.filter(shop => shop.enabled !== false)
+    const currentId = getActiveShopId()
+    let active = enabled.find(shop => shop._id === currentId) || enabled.find(shop => shop.isDefault) || enabled[0] || null
+    if (active) setActiveShopId(active._id)
+    const index = active ? enabled.findIndex(shop => shop._id === active._id) : 0
+    this.setData({
+      shops: list,
+      shopCount: enabled.length,
+      activeShop: active,
+      shopNames: enabled.map(shop => shop.shopName),
+      shopIndex: index < 0 ? 0 : index
+    })
+  },
+
+  onShopChange(event) {
+    const index = Number(event.detail.value) || 0
+    const shop = this.data.shops.filter(item => item.enabled !== false)[index]
+    if (!shop) return
+    setActiveShopId(shop._id)
+    this.setData({ activeShop: shop, shopIndex: index })
+    refreshCartBadge(0, shop._id).then(count => {
+      this.setData({ cartCount: Number(count) || 0 })
+    })
+  },
+
   writeHomeCache(data) {
     const key = this.homeCacheKey()
     if (!key) return
@@ -137,6 +179,7 @@ Page({
         settings: data.settings || {},
         categories: data.categories || [],
         products: data.products || [],
+        shops: data.shops || [],
         page: data.page || 1,
         hasMore: Boolean(data.hasMore)
       })
@@ -146,6 +189,10 @@ Page({
   },
 
   applyHome(data) {
+    if (Array.isArray(data.shops)) {
+      saveShops(data.shops)
+      this.applyShops(data.shops)
+    }
     const categories = (data.categories || []).map(item => ({
       ...item,
       initial: (item.name || '·').slice(0, 1)
@@ -160,6 +207,7 @@ Page({
       loaded: true,
       error: ''
     })
+    this.loadCartCount()
   },
 
   async load(fromPullDown) {
@@ -229,7 +277,14 @@ Page({
       syncCartBadge(0)
       return
     }
-    const count = await refreshCartBadge(60 * 1000)
+    const user = getUser() || {}
+    const shopId = user.type === 'KH' ? getActiveShopId() : ''
+    if (user.type === 'KH' && !shopId) {
+      this.setData({ cartCount: 0 })
+      syncCartBadge(0)
+      return
+    }
+    const count = await refreshCartBadge(60 * 1000, shopId)
     this.setData({ cartCount: count })
   },
 
@@ -291,6 +346,18 @@ Page({
       wx.showToast({ title: '只有客户和销售账号可以加入购物车', icon: 'none' })
       return
     }
+    const user = getUser() || {}
+    if (user.type === 'KH' && !getActiveShopId()) {
+      wx.showModal({
+        title: '请先添加店铺',
+        content: '下单前需要先维护店铺和收货地址',
+        confirmText: '去添加',
+        success: res => {
+          if (res.confirm) wx.navigateTo({ url: '/pages/shops/index?first=1' })
+        }
+      })
+      return
+    }
     const id = event.currentTarget.dataset.id
     const product = this.data.products.find(item => item._id === id)
     if (!product) return
@@ -321,10 +388,11 @@ Page({
     this.setTabBarHidden(false)
     this.setData({ qtyVisible: false, addingId: product._id })
     try {
-      const data = await api.call('addToCart', {
-        productId: product._id,
-        quantity
-      })
+      const user = getUser() || {}
+      const shopId = user.type === 'KH' ? getActiveShopId() : ''
+      const payload = { productId: product._id, quantity }
+      if (shopId) payload.shopId = shopId
+      const data = await api.call('addToCart', payload)
       syncCartBadge(data.count)
       this.setData({ cartCount: Number(data.count) || 0 })
       wx.showToast({ title: `已加入 ${quantity} 件`, icon: 'success' })

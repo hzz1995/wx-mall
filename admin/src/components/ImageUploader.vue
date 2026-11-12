@@ -6,7 +6,7 @@
       <button type="button" class="remove" @click="remove(index)">×</button>
     </div>
 
-    <label v-if="modelValue.length < maxCount" class="upload-add" :class="{ uploading }">
+    <label v-if="modelValue.length < maxCount" class="upload-add" :class="{ uploading }" title="支持一次选择多张图片">
       <input type="file" accept="image/*" multiple hidden :disabled="uploading" @change="onFiles" />
       <template v-if="!uploading">
         <span class="plus">+</span>
@@ -87,18 +87,27 @@ async function onFiles(event) {
 
   uploading.value = true
   const next = props.modelValue.slice()
+  const selected = files.slice(0, remain)
   try {
-    for (const file of files.slice(0, remain)) {
-      const dataUrl = await compress(file)
-      const result = await api.uploadImageBlob(dataUrlToBlob(dataUrl))
-      next.push({ fileID: result.fileID, url: result.url || dataUrl })
-      emit('update:modelValue', next.slice())
+    const results = await Promise.all(selected.map(async file => {
+      try {
+        const dataUrl = await compress(file)
+        const result = await api.uploadImageBlob(dataUrlToBlob(dataUrl))
+        return { fileID: result.fileID, url: result.url || dataUrl }
+      } catch (err) {
+        return null
+      }
+    }))
+    const uploaded = results.filter(Boolean)
+    if (uploaded.length) {
+      emit('update:modelValue', next.concat(uploaded))
     }
     if (files.length > remain) {
       ElMessage.warning(`最多上传 ${props.maxCount} 张图片`)
     }
-  } catch (err) {
-    ElMessage.error(err.message)
+    if (uploaded.length < selected.length) {
+      ElMessage.error('部分图片上传失败，请重试')
+    }
   } finally {
     uploading.value = false
   }

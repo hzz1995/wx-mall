@@ -29,6 +29,13 @@
   padding-top: 4rpx;
 }
 
+.profile-link {
+  flex: 0 0 auto;
+  padding-top: 4rpx;
+  font-size: 24rpx;
+  color: var(--green);
+}
+
 .address {
   min-height: 100rpx;
   line-height: 1.6;

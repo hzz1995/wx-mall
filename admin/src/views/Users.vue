@@ -42,14 +42,16 @@
           <el-tag :type="typeMeta(row.type).type" effect="light">{{ typeMeta(row.type).label }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="店铺名称" min-width="150">
+      <el-table-column label="店铺" min-width="220">
         <template #default="{ row }">
-          <span :class="{ muted: !row.shopName }">{{ row.shopName || '—' }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="收货地址" min-width="200" show-overflow-tooltip>
-        <template #default="{ row }">
-          <span :class="{ muted: !row.address }">{{ row.address || '—' }}</span>
+          <template v-if="row.type === 'KH'">
+            <div>
+              {{ row.shopName || '未设置店铺' }}
+              <span v-if="row.shopCount > 1" class="muted">共 {{ row.shopCount }} 个</span>
+            </div>
+            <div class="muted">{{ row.address || '未填写默认地址' }}</div>
+          </template>
+          <span v-else class="muted">—</span>
         </template>
       </el-table-column>
       <el-table-column label="负责销售" width="120">
@@ -73,12 +75,14 @@
       <el-table-column label="创建时间" width="150">
         <template #default="{ row }">{{ time(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="250" fixed="right">
+      <el-table-column label="操作" width="360" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+          <el-button v-if="row.type === 'KH'" link type="success" @click="openShops(row)">店铺</el-button>
           <template v-if="row._id !== currentUserId">
             <el-button link type="warning" @click="openSetPassword(row)">修改密码</el-button>
             <el-button link type="info" @click="resetPassword(row)">重置密码</el-button>
+            <el-button link type="danger" @click="removeUser(row)">删除</el-button>
           </template>
         </template>
       </el-table-column>
@@ -114,11 +118,14 @@
             <el-option label="管理员 GLY" value="GLY" />
           </el-select>
         </el-form-item>
-        <el-form-item label="店铺名称" :required="form.type === 'KH'">
+        <el-form-item v-if="form.type === 'KH' && !form._id" label="首个店铺名称" required>
           <el-input v-model="form.shopName" maxlength="50" placeholder="客户类型必填" />
         </el-form-item>
-        <el-form-item label="收货地址" :required="form.type === 'KH'">
+        <el-form-item v-if="form.type === 'KH' && !form._id" label="首个收货地址" required>
           <el-input v-model="form.address" type="textarea" :rows="2" maxlength="200" show-word-limit placeholder="客户类型必填" />
+        </el-form-item>
+        <el-form-item v-if="form.type === 'KH' && form._id" label="店铺管理">
+          <el-button plain type="primary" @click="openShops(form)">管理店铺与收货地址</el-button>
         </el-form-item>
         <el-form-item v-if="form.type === 'KH'" label="负责销售" required>
           <el-select v-model="form.salesId" placeholder="请选择销售账号" style="width: 100%">
@@ -169,6 +176,13 @@
         <el-button type="primary" :loading="passwordSaving" @click="saveSetPassword">保存</el-button>
       </template>
     </el-dialog>
+
+    <ShopManager
+      v-model="shopDialogVisible"
+      :user-id="shopUser.userId"
+      :user-name="shopUser.name"
+      @saved="load"
+    />
   </div>
 </template>
 
@@ -177,6 +191,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api, getAdminUser } from '../api'
 import { time } from '../utils'
+import ShopManager from '../components/ShopManager.vue'
 
 const adminUser = getAdminUser()
 const currentUserId = adminUser ? adminUser._id : ''
@@ -199,6 +214,8 @@ const saving = ref(false)
 const dialogVisible = ref(false)
 const passwordDialogVisible = ref(false)
 const passwordSaving = ref(false)
+const shopDialogVisible = ref(false)
+const shopUser = reactive({ userId: '', name: '' })
 const filters = reactive({ type: '', keyword: '' })
 const form = reactive(createEmptyForm())
 const passwordForm = reactive({ _id: '', name: '', password: '', confirm: '' })
@@ -289,6 +306,15 @@ function openEdit(row) {
   dialogVisible.value = true
 }
 
+function openShops(row) {
+  const userId = row._id || row.userId
+  if (!userId) return
+  dialogVisible.value = false
+  shopUser.userId = userId
+  shopUser.name = row.name || ''
+  shopDialogVisible.value = true
+}
+
 function onTypeChange(value) {
   if (value !== 'KH') {
     form.salesId = ''
@@ -310,17 +336,19 @@ async function save() {
     return
   }
   if (form.type === 'KH') {
-    if (!form.shopName.trim()) {
-      ElMessage.warning('客户类型必须填写门店名称')
-      return
-    }
-    if (!form.address.trim()) {
-      ElMessage.warning('客户类型必须填写收货地址')
-      return
-    }
     if (!form.salesId) {
       ElMessage.warning('客户类型必须选择负责销售')
       return
+    }
+    if (!form._id) {
+      if (!form.shopName.trim()) {
+        ElMessage.warning('客户类型必须填写首个店铺名称')
+        return
+      }
+      if (!form.address.trim()) {
+        ElMessage.warning('客户类型必须填写首个店铺收货地址')
+        return
+      }
     }
   }
 
@@ -328,11 +356,13 @@ async function save() {
     phone: form.phone.trim(),
     name: form.name.trim(),
     type: form.type,
-    shopName: form.shopName.trim(),
-    address: form.address.trim(),
     salesId: form.type === 'KH' ? form.salesId : '',
     categoryIds: form.type === 'KH' ? form.categoryIds : [],
     enabled: form.enabled
+  }
+  if (form.type === 'KH' && !form._id) {
+    payload.shopName = form.shopName.trim()
+    payload.address = form.address.trim()
   }
   if (!form._id) payload.password = form.password
 
@@ -409,6 +439,34 @@ async function resetPassword(row) {
   try {
     await api.resetUserPassword(row._id)
     ElMessage.success('密码已重置为 123456')
+  } catch (err) {
+    ElMessage.error(err.message)
+  }
+}
+
+async function removeUser(row) {
+  try {
+    await ElMessageBox.confirm(`确认删除用户「${row.name}」？`, '删除用户', {
+      confirmButtonText: '继续',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch (err) {
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      '删除后账号将从列表隐藏并禁止登录，订单数据保留；该客户的店铺和购物车会一并清理，销售名下客户会解除分配。请再次确认删除。',
+      '二次确认',
+      { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'error' }
+    )
+  } catch (err) {
+    return
+  }
+  try {
+    await api.deleteUser(row._id)
+    ElMessage.success('用户已删除')
+    load()
   } catch (err) {
     ElMessage.error(err.message)
   }
