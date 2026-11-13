@@ -69,15 +69,32 @@
         <view class="shop-tags">
           <text class="shop-tag default" wx:if="{{item.isDefault}}">默认</text>
           <text class="shop-tag active" wx:if="{{item._id === activeShopId}}">当前使用</text>
+          <text class="shop-tag disabled" wx:if="{{item.enabled === false}}">已停用</text>
         </view>
       </view>
-      <view class="shop-address">{{item.address}}</view>
-      <view class="shop-contact" wx:if="{{item.contactName || item.phone}}">
-        {{item.contactName || '—'}}{{item.phone ? ' · ' + item.phone : ''}}
+      <view class="shop-fields">
+        <view class="shop-field">
+          <text class="shop-field-label">收货地址</text>
+          <text class="shop-field-value">{{item.address || '—'}}</text>
+        </view>
+        <view class="shop-field">
+          <text class="shop-field-label">联系人</text>
+          <text class="shop-field-value">{{item.contactName || '—'}}</text>
+        </view>
+        <view class="shop-field">
+          <text class="shop-field-label">联系电话</text>
+          <text class="shop-field-value">{{item.phone || '—'}}</text>
+        </view>
       </view>
       <view class="shop-actions">
-        <view class="shop-action primary" wx:if="{{item._id !== activeShopId}}" data-id="{{item._id}}" bindtap="useShop">使用</view>
-        <view class="shop-action" wx:if="{{!item.isDefault}}" data-id="{{item._id}}" bindtap="setDefault">设为默认</view>
+        <view class="shop-action primary" wx:if="{{item._id !== activeShopId && item.enabled !== false}}" data-id="{{item._id}}" bindtap="useShop">使用</view>
+        <view class="shop-action" wx:if="{{!item.isDefault && item.enabled !== false}}" data-id="{{item._id}}" bindtap="setDefault">设为默认</view>
+        <view
+          class="shop-action {{item.enabled === false ? 'primary' : 'warning'}}"
+          data-id="{{item._id}}"
+          data-enabled="{{item.enabled === false ? 'off' : 'on'}}"
+          bindtap="toggleShop"
+        >{{item.enabled === false ? '启用' : '停用'}}</view>
         <view class="shop-action" data-id="{{item._id}}" bindtap="editShop">编辑</view>
         <view class="shop-action danger" wx:if="{{shops.length > 1}}" data-id="{{item._id}}" bindtap="removeShop">删除</view>
       </view>

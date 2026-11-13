@@ -39,10 +39,14 @@ Page({
       const data = await api.call('listMyShops')
       const shops = data.shops || []
       saveShops(shops)
+      const enabledShops = shops.filter(item => item.enabled !== false)
       let activeShopId = getActiveShopId()
-      if (!activeShopId && data.defaultShopId) {
-        setActiveShopId(data.defaultShopId)
-        activeShopId = data.defaultShopId
+      if (!enabledShops.some(item => item._id === activeShopId)) {
+        const fallback = enabledShops.find(item => item._id === data.defaultShopId)
+          || enabledShops.find(item => item.isDefault)
+          || enabledShops[0]
+        activeShopId = fallback ? fallback._id : ''
+        if (activeShopId) setActiveShopId(activeShopId)
       }
       this.initialized = true
       this.setData({
@@ -149,6 +153,52 @@ Page({
     this.setData({ activeShopId: shopId })
     refreshCartBadge(0, shopId)
     wx.showToast({ title: `已切换到 ${shop.shopName}`, icon: 'none' })
+  },
+
+  toggleShop(event) {
+    const shopId = event.currentTarget.dataset.id
+    const enabled = event.currentTarget.dataset.enabled === 'on'
+    const shop = this.data.shops.find(item => item._id === shopId)
+    if (!shop) return
+    if (enabled) {
+      wx.showModal({
+        title: '停用店铺',
+        content: `确认停用「${shop.shopName}」？停用后该店铺不能用于下单。`,
+        confirmText: '停用',
+        confirmColor: '#e2572b',
+        success: res => {
+          if (res.confirm) this.updateShopEnabled(shopId, false)
+        }
+      })
+      return
+    }
+    this.updateShopEnabled(shopId, true)
+  },
+
+  async updateShopEnabled(shopId, enabled) {
+    try {
+      const data = await api.call('updateShop', { shopId, enabled })
+      const shops = data.shops || []
+      saveShops(shops)
+      const enabledShops = shops.filter(item => item.enabled !== false)
+      let activeShopId = getActiveShopId()
+      if (!enabledShops.some(item => item._id === activeShopId)) {
+        const fallback = enabledShops.find(item => item._id === data.defaultShopId)
+          || enabledShops.find(item => item.isDefault)
+          || enabledShops[0]
+        activeShopId = fallback ? fallback._id : ''
+        if (activeShopId) setActiveShopId(activeShopId)
+      }
+      this.setData({
+        shops,
+        defaultShopId: data.defaultShopId || '',
+        activeShopId
+      })
+      refreshCartBadge(0, activeShopId)
+      wx.showToast({ title: enabled ? '已启用店铺' : '已停用店铺', icon: 'none' })
+    } catch (err) {
+      api.toastError(err)
+    }
   },
 
   async setDefault(event) {

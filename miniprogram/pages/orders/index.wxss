@@ -10,23 +10,23 @@
 }
 
 .head-title {
-  font-size: 44rpx;
+  font-size: 46rpx;
   font-weight: 600;
   letter-spacing: 2rpx;
 }
 
 .head-sub {
   margin-top: 8rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: var(--muted);
 }
 
 .export-btn {
-  padding: 10rpx 22rpx;
+  padding: 12rpx 26rpx;
   border-radius: 999rpx;
   border: 1rpx solid var(--green);
   color: var(--green);
-  font-size: 21rpx;
+  font-size: 25rpx;
   line-height: 1.4;
 }
 
@@ -50,7 +50,7 @@
 }
 
 .order-no {
-  font-size: 24rpx;
+  font-size: 26rpx;
   color: var(--muted);
   letter-spacing: 1rpx;
 }
@@ -92,11 +92,11 @@
 }
 
 .source-tag {
-  padding: 2rpx 12rpx;
+  padding: 3rpx 14rpx;
   border-radius: 999rpx;
   background: var(--green-soft);
   color: var(--green);
-  font-size: 18rpx;
+  font-size: 21rpx;
   line-height: 1.5;
 }
 
@@ -144,8 +144,8 @@
 }
 
 .order-name {
-  font-size: 28rpx;
-  line-height: 1.4;
+  font-size: 30rpx;
+  line-height: 1.45;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -153,19 +153,19 @@
 
 .order-qty {
   margin-top: 8rpx;
-  font-size: 23rpx;
+  font-size: 25rpx;
   color: var(--muted);
 }
 
 .order-spec {
   margin-top: 6rpx;
-  font-size: 23rpx;
-  line-height: 1.4;
+  font-size: 25rpx;
+  line-height: 1.45;
   color: var(--muted);
 }
 
 .order-amount {
-  font-size: 32rpx;
+  font-size: 34rpx;
   flex: 0 0 auto;
 }
 
@@ -174,8 +174,8 @@
   padding: 10rpx 14rpx;
   border-radius: 8rpx;
   background: #faf7f0;
-  font-size: 22rpx;
-  line-height: 1.5;
+  font-size: 24rpx;
+  line-height: 1.55;
   color: var(--ink-soft);
   word-break: break-word;
 }
@@ -190,42 +190,43 @@
 }
 
 .order-time {
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: var(--muted);
 }
 
 .order-actions {
   display: flex;
   align-items: center;
-  gap: 18rpx;
+  gap: 16rpx;
 }
 
 .reorder-btn {
-  padding: 6rpx 18rpx;
-  border-radius: 24rpx;
+  padding: 10rpx 24rpx;
+  border-radius: 28rpx;
   border: 1rpx solid var(--accent);
   color: var(--accent);
-  font-size: 21rpx;
+  font-size: 25rpx;
   line-height: 1.4;
 }
 
 .cancel-btn {
-  padding: 6rpx 18rpx;
-  border-radius: 24rpx;
+  padding: 10rpx 24rpx;
+  border-radius: 28rpx;
   border: 1rpx solid #c9c6bb;
   color: var(--muted);
-  font-size: 21rpx;
+  font-size: 25rpx;
   line-height: 1.4;
 }
 
 .order-more {
-  font-size: 23rpx;
+  padding: 10rpx 4rpx 10rpx 12rpx;
+  font-size: 26rpx;
   color: var(--green);
 }
 
 .load-more {
   text-align: center;
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: var(--muted);
   padding: 20rpx 0 10rpx;
 }
@@ -255,12 +256,12 @@
   display: inline-flex;
   max-width: 100%;
   box-sizing: border-box;
-  padding: 10rpx 20rpx;
-  border-radius: 12rpx;
+  padding: 12rpx 22rpx;
+  border-radius: 14rpx;
   background: #fff;
   border: 1rpx solid var(--line);
   color: var(--ink-soft);
-  font-size: 22rpx;
+  font-size: 24rpx;
   line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -277,13 +278,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 10rpx 24rpx;
+  padding: 12rpx 26rpx;
   margin-right: 14rpx;
   border-radius: 999rpx;
   background: #fff;
   border: 1rpx solid var(--line);
   color: var(--ink-soft);
-  font-size: 22rpx;
+  font-size: 24rpx;
   line-height: 1.4;
 }
 
@@ -301,18 +302,18 @@
 }
 
 .month-label {
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: var(--muted);
 }
 
 .month-pill {
   display: inline-flex;
-  padding: 10rpx 20rpx;
+  padding: 12rpx 22rpx;
   border-radius: 999rpx;
   background: #fff;
   border: 1rpx solid var(--line);
   color: var(--ink-soft);
-  font-size: 22rpx;
+  font-size: 24rpx;
   line-height: 1.4;
 }
 
@@ -328,19 +329,19 @@
 
 .order-customer {
   margin: 0 0 14rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: var(--ink-soft);
   line-height: 1.5;
 }
 
 .order-shop {
   margin: 0 0 12rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: var(--muted);
 }
 
 .order-sales {
   margin: 0 0 12rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: var(--muted);
 }

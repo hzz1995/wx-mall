@@ -2,7 +2,7 @@
   <el-dialog
     :model-value="modelValue"
     :title="`店铺管理${userName ? ' · ' + userName : ''}`"
-    width="720px"
+    width="960px"
     destroy-on-close
     @update:model-value="value => emit('update:modelValue', value)"
   >
@@ -18,20 +18,28 @@
           <el-tag v-if="row.isDefault" size="small" type="success" effect="light">默认</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="收货地址" min-width="220" show-overflow-tooltip>
+      <el-table-column label="收货地址" min-width="200" show-overflow-tooltip>
         <template #default="{ row }">{{ row.address }}</template>
       </el-table-column>
-      <el-table-column label="联系人" width="110">
+      <el-table-column label="联系人" width="100">
         <template #default="{ row }">{{ row.contactName || '—' }}</template>
       </el-table-column>
-      <el-table-column label="电话" width="130">
+      <el-table-column label="电话" width="120">
         <template #default="{ row }">{{ row.phone || '—' }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column label="状态" width="84">
         <template #default="{ row }">
-          <el-button v-if="!row.isDefault" link type="primary" @click="setDefault(row)">设默认</el-button>
-          <el-button link type="primary" @click="startEdit(row)">编辑</el-button>
-          <el-button link type="danger" @click="remove(row)">删除</el-button>
+          <el-switch
+            :model-value="row.enabled !== false"
+            @change="value => toggleEnabled(row, value)"
+          />
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="260" fixed="right">
+        <template #default="{ row }">
+          <el-button v-if="!row.isDefault && row.enabled !== false" type="primary" plain @click="setDefault(row)">设默认</el-button>
+          <el-button type="primary" plain @click="startEdit(row)">编辑</el-button>
+          <el-button type="danger" plain @click="remove(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -160,6 +168,17 @@ async function setDefault(row) {
   }
 }
 
+async function toggleEnabled(row, enabled) {
+  try {
+    await api.updateUserShop(props.userId, row._id, { enabled })
+    ElMessage.success(enabled ? '店铺已启用' : '店铺已停用')
+    emit('saved')
+  } catch (err) {
+    ElMessage.error(err.message)
+  }
+  await load()
+}
+
 async function remove(row) {
   try {
     await ElMessageBox.confirm(`确认删除店铺「${row.shopName}」？历史订单不受影响。`, '删除店铺', {
@@ -214,7 +233,7 @@ watch(
 }
 
 .form-title {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   margin-bottom: 12px;
 }
