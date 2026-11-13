@@ -65,7 +65,6 @@
       <view class="field" wx:if="{{isKh}}">
         <view class="field-label">店铺</view>
         <view class="readonly">{{shop.shopName || '—'}}</view>
-        <view class="field-link" bindtap="goShops">管理</view>
       </view>
       <view class="field">
         <view class="field-label required">收货地址</view>

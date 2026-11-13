@@ -50,7 +50,11 @@
 
   <block wx:elif="{{items.length}}">
     <view class="list">
-      <view class="cart-item" wx:for="{{items}}" wx:key="productId">
+      <view
+        class="cart-item"
+        wx:for="{{items}}"
+        wx:key="productId"
+      >
         <view
           class="check {{item.checked ? 'checked' : ''}} {{!item.onSale ? 'disabled' : ''}}"
           data-id="{{item.productId}}"
@@ -83,7 +87,15 @@
                 data-delta="-1"
                 bindtap="changeQuantity"
               >−</view>
-              <view class="stepper-value">{{item.quantity}}</view>
+              <input
+                class="stepper-input"
+                type="number"
+                value="{{item.quantity}}"
+                data-id="{{item.productId}}"
+                data-quantity="{{item.quantity}}"
+                bindblur="onQuantityInput"
+                bindconfirm="onQuantityInput"
+              />
               <view
                 class="stepper-btn"
                 data-id="{{item.productId}}"
@@ -105,6 +117,7 @@
           </view>
           <text>全选</text>
         </view>
+        <view class="batch-remove {{selectedCount > 0 ? '' : 'disabled'}}" bindtap="removeSelected">批量移除</view>
         <view class="dock-main">
           <view class="dock-label">合计（{{selectedCount}} 件）</view>
           <view class="dock-total price"><text class="yen">¥</text>{{totalText}}</view>

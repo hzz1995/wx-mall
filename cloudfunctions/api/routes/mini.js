@@ -561,10 +561,13 @@ async function removeCartItem(user, event) {
   ensureShopper(user, '只有客户和销售账号可以操作购物车')
   const shop = user.type === 'KH' ? await resolveShop(user, event.shopId) : null
   const shopId = shop ? shop._id : 'demo'
-  const productId = String(event.productId || '')
-  if (!productId) throw new Error('缺少商品信息')
+  const productIds = (Array.isArray(event.productIds) ? event.productIds : [event.productId])
+    .map(id => String(id || ''))
+    .filter(Boolean)
+  if (!productIds.length) throw new Error('缺少商品信息')
+  const idSet = new Set(productIds)
   const cart = await readCart(user._id, shopId)
-  const items = (cart.items || []).filter(item => item.productId !== productId)
+  const items = (cart.items || []).filter(item => !idSet.has(item.productId))
   await writeCart(user._id, shopId, items)
   return { count: cartCount(items) }
 }

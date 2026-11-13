@@ -33,6 +33,7 @@ Page({
     qtyProduct: {},
     qtyValue: 1,
     showTop: false,
+    railTop: 88,
     skeletonItems: [1, 2, 3],
     loading: true,
     loadingMore: false,
@@ -51,6 +52,10 @@ Page({
     const cached = this.readHomeCache()
     if (cached) this.applyHome(cached)
     this.load()
+  },
+
+  onReady() {
+    this.measureSticky()
   },
 
   onShow() {
@@ -99,6 +104,19 @@ Page({
     if (showTop !== this.data.showTop) {
       this.setData({ showTop })
     }
+  },
+
+  measureSticky() {
+    wx.nextTick(() => {
+      wx.createSelectorQuery()
+        .select('.top-fixed')
+        .boundingClientRect(rect => {
+          if (!rect || !rect.height) return
+          const railTop = Math.round(rect.height)
+          if (railTop !== this.data.railTop) this.setData({ railTop })
+        })
+        .exec()
+    })
   },
 
   decorate(products) {
@@ -157,6 +175,7 @@ Page({
       shopNames: enabled.map(shop => shop.shopName),
       shopIndex: index < 0 ? 0 : index
     })
+    this.measureSticky()
   },
 
   onShopChange(event) {
@@ -208,6 +227,7 @@ Page({
       error: ''
     })
     this.loadCartCount()
+    this.measureSticky()
   },
 
   async load(fromPullDown) {

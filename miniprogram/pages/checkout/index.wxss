@@ -170,14 +170,6 @@
   padding-top: 4rpx;
 }
 
-.field-link {
-  flex: 0 0 auto;
-  padding-top: 4rpx;
-  font-size: 24rpx;
-  color: var(--green);
-  text-decoration: underline;
-}
-
 .address-readonly {
   line-height: 1.6;
   word-break: break-all;

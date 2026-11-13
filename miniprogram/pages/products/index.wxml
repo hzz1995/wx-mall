@@ -1,63 +1,65 @@
 <view class="page products-page">
-  <view class="header">
-    <view class="header-watermark">SELECT</view>
-    <view class="header-top">
-      <view class="header-title-wrap">
-        <view class="header-eyebrow">{{settings.shopName || 'GOODS'}}</view>
-        <view class="header-title">全部商品</view>
-      </view>
-      <view class="shortcuts">
-        <view class="shortcut" bindtap="goCart">
-          <view class="shortcut-bubble">
-            <image class="shortcut-icon" src="/images/icon-cart-light.png" mode="aspectFit" />
+  <view class="top-fixed">
+    <view class="header">
+      <view class="header-watermark">SELECT</view>
+      <view class="header-top">
+        <view class="header-title-wrap">
+          <view class="header-eyebrow">{{settings.shopName || 'GOODS'}}</view>
+          <view class="header-title">全部商品</view>
+        </view>
+        <view class="shortcuts">
+          <view class="shortcut" bindtap="goCart">
+            <view class="shortcut-bubble">
+              <image class="shortcut-icon" src="/images/icon-cart-light.png" mode="aspectFit" />
+            </view>
+            <text>购物车</text>
+            <view class="shortcut-badge" wx:if="{{cartCount > 0}}">{{cartCount > 99 ? '99+' : cartCount}}</view>
           </view>
-          <text>购物车</text>
-          <view class="shortcut-badge" wx:if="{{cartCount > 0}}">{{cartCount > 99 ? '99+' : cartCount}}</view>
-        </view>
-        <view class="shortcut" bindtap="goOrders">
-          <view class="shortcut-bubble">
-            <image class="shortcut-icon" src="/images/icon-order-light.png" mode="aspectFit" />
+          <view class="shortcut" bindtap="goOrders">
+            <view class="shortcut-bubble">
+              <image class="shortcut-icon" src="/images/icon-order-light.png" mode="aspectFit" />
+            </view>
+            <text>订单</text>
           </view>
-          <text>订单</text>
         </view>
       </view>
+
+      <view class="shop-row" wx:if="{{isCustomer && shopCount > 1}}">
+        <picker
+          class="shop-picker"
+          mode="selector"
+          range="{{shopNames}}"
+          value="{{shopIndex}}"
+          bindchange="onShopChange"
+        >
+          <view class="shop-pill">
+            <text class="shop-pill-label">切换店铺：</text>
+            <text class="shop-pill-name">{{shopNames[shopIndex]}}</text>
+            <text class="shop-pill-arrow">▾</text>
+          </view>
+        </picker>
+      </view>
+
+      <view class="search-bar">
+        <image class="search-icon" src="/images/icon-search.png" mode="aspectFit" />
+        <input
+          class="search-input"
+          placeholder="搜索商品名称"
+          placeholder-class="search-placeholder"
+          value="{{keyword}}"
+          confirm-type="search"
+          bindinput="onSearchInput"
+        />
+        <view class="search-clear" wx:if="{{keyword}}" bindtap="clearSearch">×</view>
+      </view>
+      <view class="shop-notice" wx:if="{{settings.notice}}">{{settings.notice}}</view>
     </view>
 
-    <view class="shop-row" wx:if="{{isCustomer && shopCount > 1}}">
-      <picker
-        class="shop-picker"
-        mode="selector"
-        range="{{shopNames}}"
-        value="{{shopIndex}}"
-        bindchange="onShopChange"
-      >
-        <view class="shop-pill">
-          <text class="shop-pill-label">切换店铺：</text>
-          <text class="shop-pill-name">{{shopNames[shopIndex]}}</text>
-          <text class="shop-pill-arrow">▾</text>
-        </view>
-      </picker>
+    <view class="filter-row">
+      <view class="result-count" wx:if="{{!loaded}}">正在加载…</view>
+      <view class="result-count" wx:elif="{{loading}}">更新中…</view>
+      <view class="result-count" wx:else>已加载 {{products.length}} 件</view>
     </view>
-
-    <view class="search-bar">
-      <image class="search-icon" src="/images/icon-search.png" mode="aspectFit" />
-      <input
-        class="search-input"
-        placeholder="搜索商品名称"
-        placeholder-class="search-placeholder"
-        value="{{keyword}}"
-        confirm-type="search"
-        bindinput="onSearchInput"
-      />
-      <view class="search-clear" wx:if="{{keyword}}" bindtap="clearSearch">×</view>
-    </view>
-    <view class="shop-notice" wx:if="{{settings.notice}}">{{settings.notice}}</view>
-  </view>
-
-  <view class="filter-row">
-    <view class="result-count" wx:if="{{!loaded}}">正在加载…</view>
-    <view class="result-count" wx:elif="{{loading}}">更新中…</view>
-    <view class="result-count" wx:else>已加载 {{products.length}} 件</view>
   </view>
 
   <view wx:if="{{loading && !loaded}}" class="loading-wrap">
@@ -83,7 +85,7 @@
   </view>
 
   <view wx:else class="content">
-    <view class="rail">
+    <view class="rail" style="top: {{railTop}}px; max-height: calc(100vh - {{railTop}}px - 160rpx - env(safe-area-inset-bottom));">
       <view
         class="rail-item {{activeCategory === 'all' ? 'active' : ''}}"
         data-id="all"

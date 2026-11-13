@@ -206,6 +206,33 @@ Page({
     }
   },
 
+  async onQuantityInput(event) {
+    const { id, quantity } = event.currentTarget.dataset
+    const raw = String(event.detail.value == null ? '' : event.detail.value).trim()
+    const key = `${id}:${raw}`
+    const now = Date.now()
+    if (this._lastQuantityKey === key && now - this._lastQuantityAt < 800) return
+    this._lastQuantityKey = key
+    this._lastQuantityAt = now
+    const next = Number(raw)
+    if (!Number.isInteger(next) || next < 1 || next > 99) {
+      wx.showToast({ title: '数量需在 1-99 之间', icon: 'none' })
+      this.load()
+      return
+    }
+    if (next === Number(quantity)) {
+      if (raw !== String(next)) this.load()
+      return
+    }
+    try {
+      await api.call('updateCartItem', this.withShop({ productId: id, quantity: next }))
+      this.load()
+    } catch (err) {
+      api.toastError(err)
+      this.load()
+    }
+  },
+
   removeItem(event) {
     const { id, name } = event.currentTarget.dataset
     wx.showModal({
@@ -215,6 +242,31 @@ Page({
         if (!res.confirm) return
         try {
           await api.call('removeCartItem', this.withShop({ productId: id }))
+          this.load()
+        } catch (err) {
+          api.toastError(err)
+        }
+      }
+    })
+  },
+
+  removeSelected() {
+    const selected = this.data.items.filter(item => item.checked)
+    if (!selected.length) {
+      wx.showToast({ title: '请先勾选要删除的商品', icon: 'none' })
+      return
+    }
+    wx.showModal({
+      title: '批量移除商品',
+      content: `确认从购物车移除选中的 ${selected.length} 个商品？`,
+      confirmText: '移除',
+      confirmColor: '#e2572b',
+      success: async res => {
+        if (!res.confirm) return
+        try {
+          await api.call('removeCartItem', this.withShop({
+            productIds: selected.map(item => item.productId)
+          }))
           this.load()
         } catch (err) {
           api.toastError(err)
