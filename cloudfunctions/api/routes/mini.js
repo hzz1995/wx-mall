@@ -448,16 +448,20 @@ async function getCart(user, event) {
   rawItems.forEach(item => {
     const product = map[item.productId]
     if (!product || !canAccessProduct(user, product)) return
+    const detail = serializeProduct(product)
     const onSale = product.status === 'ON'
     items.push({
       productId: product._id,
       quantity: Math.min(99, Math.max(1, Number(item.quantity) || 1)),
       checked: item.checked !== false && onSale,
-      name: product.name,
-      spec: product.spec || '',
-      price: Number(product.price) || 0,
-      cover: (product.images || [])[0] || '',
-      status: product.status,
+      name: detail.name,
+      spec: detail.spec,
+      validUntil: detail.validUntil,
+      productionDate: detail.productionDate,
+      origin: detail.origin,
+      price: detail.price,
+      cover: detail.images[0] || '',
+      status: detail.status,
       onSale
     })
   })
@@ -744,7 +748,9 @@ async function listStaffOrders(user, event) {
     .limit(pageSize + 1)
     .get()
 
-  let list = listRes.data.slice(0, pageSize).map(serializeOrder)
+  const rawList = listRes.data.slice(0, pageSize)
+  await attachOrderProductCodes(rawList)
+  let list = rawList.map(serializeOrder)
   if (list.some(order => order.salesId && !order.salesName)) {
     const salesMap = await getSalesMap(list.map(order => order.salesId))
     list = list.map(order => ({
@@ -790,7 +796,7 @@ async function attachOrderProductCodes(orders) {
   const ids = []
   ;(orders || []).forEach(order => {
     ;(order.items || []).forEach(item => {
-      if (item.productId && !item.productCode) ids.push(item.productId)
+      if (item.productId && (!item.productCode || !item.spec)) ids.push(item.productId)
     })
   })
   if (!ids.length) return
@@ -804,10 +810,14 @@ async function attachOrderProductCodes(orders) {
     })
   }
   ;(orders || []).forEach(order => {
-    order.items = (order.items || []).map(item => ({
-      ...item,
-      productCode: item.productCode || (productMap[item.productId] && productMap[item.productId].productCode) || ''
-    }))
+    order.items = (order.items || []).map(item => {
+      const product = productMap[item.productId]
+      return {
+        ...item,
+        productCode: item.productCode || (product && product.productCode) || '',
+        spec: item.spec || (product && product.spec) || ''
+      }
+    })
   })
 }
 
@@ -1057,8 +1067,10 @@ async function listMyOrders(user, event) {
     .limit(pageSize + 1)
     .get()
 
+  const rawList = listRes.data.slice(0, pageSize)
+  await attachOrderProductCodes(rawList)
   return {
-    list: listRes.data.slice(0, pageSize).map(serializeOrder),
+    list: rawList.map(serializeOrder),
     hasMore: listRes.data.length > pageSize,
     page
   }
@@ -1085,6 +1097,7 @@ async function getMyOrder(user, event) {
   ) {
     throw new Error('订单不存在')
   }
+  await attachOrderProductCodes([order])
   return { order: serializeOrder(order) }
 }
 

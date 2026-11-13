@@ -44,6 +44,7 @@ function decorate(order) {
     totalText: formatPrice(order.totalAmount),
     createdAtText: formatTime(order.createdAt),
     itemName: first.name || '商品',
+    itemSpec: first.spec || '',
     itemQuantity: quantity,
     itemImage: first.image || '',
     itemInitial: (first.name || '·').slice(0, 1),

@@ -221,6 +221,7 @@ Page({
       selected.push({
         productId: product._id,
         name: product.name,
+        spec: product.spec || '',
         price: product.price,
         priceText: product.priceText,
         quantity: 1

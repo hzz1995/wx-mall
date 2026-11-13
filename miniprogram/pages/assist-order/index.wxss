@@ -153,10 +153,23 @@
   border-bottom: none;
 }
 
-.selected-name {
+.selected-main {
   flex: 1;
   min-width: 0;
+}
+
+.selected-name {
   font-size: 23rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selected-spec {
+  margin-top: 2rpx;
+  font-size: 22rpx;
+  line-height: 1.4;
+  color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -270,12 +283,13 @@
 }
 
 .product-meta {
-  margin-top: 6rpx;
-  font-size: 20rpx;
+  margin-top: 8rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 2rpx;
+  font-size: 22rpx;
+  line-height: 1.45;
   color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .product-bottom {

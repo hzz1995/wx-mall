@@ -37,7 +37,10 @@
 
     <view class="selected-card" wx:if="{{selected.length}}">
       <view class="selected-item" wx:for="{{selected}}" wx:key="productId">
-        <view class="selected-name">{{item.name}}</view>
+        <view class="selected-main">
+          <view class="selected-name">{{item.name}}</view>
+          <view class="selected-spec" wx:if="{{item.spec}}">规格型号：{{item.spec}}</view>
+        </view>
         <view class="stepper">
           <view class="step-btn" data-product-id="{{item.productId}}" data-delta="-1" catchtap="changeQty">−</view>
           <view class="step-value">{{item.quantity}}</view>
@@ -58,13 +61,10 @@
         <view class="product-main">
           <view class="product-name">{{item.name}}</view>
           <view class="product-meta" wx:if="{{item.spec || item.validUntil || item.productionDate || item.origin}}">
-            <text wx:if="{{item.spec}}">{{item.spec}}</text>
-            <text wx:if="{{item.spec && (item.validUntil || item.productionDate || item.origin)}}"> · </text>
-            <text wx:if="{{item.validUntil}}">有效期至 {{item.validUntil}}</text>
-            <text wx:if="{{item.validUntil && (item.productionDate || item.origin)}}"> · </text>
-            <text wx:if="{{item.productionDate}}">生产年份 {{item.productionDate}}</text>
-            <text wx:if="{{item.productionDate && item.origin}}"> · </text>
-            <text wx:if="{{item.origin}}">{{item.origin}}</text>
+            <view class="product-meta-item" wx:if="{{item.spec}}">规格型号：{{item.spec}}</view>
+            <view class="product-meta-item" wx:if="{{item.validUntil}}">有效期至：{{item.validUntil}}</view>
+            <view class="product-meta-item" wx:if="{{item.productionDate}}">生产年份：{{item.productionDate}}</view>
+            <view class="product-meta-item" wx:if="{{item.origin}}">产地：{{item.origin}}</view>
           </view>
           <view class="product-bottom">
             <view class="price">¥{{item.priceText}}</view>

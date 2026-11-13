@@ -107,6 +107,7 @@
         </view>
         <view class="order-main">
           <view class="order-name">{{item.itemName}}{{item.extraCount > 0 ? ' 等 ' + (item.extraCount + 1) + ' 种商品' : ''}}</view>
+          <view class="order-spec" wx:if="{{item.itemSpec}}">规格型号：{{item.itemSpec}}</view>
           <view class="order-qty">× {{item.itemQuantity}}</view>
         </view>
         <view class="order-amount price"><text class="yen">¥</text>{{item.totalText}}</view>

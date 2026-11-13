@@ -101,13 +101,19 @@
 
         <el-divider content-position="left">商品</el-divider>
 
-        <div v-for="(item, index) in current.items" :key="index" class="cart-item">
+        <div
+          v-for="(item, index) in current.items"
+          :key="index"
+          class="cart-item cart-item-link"
+          @click="openProduct(item)"
+        >
           <div class="cart-main">
             <div>
               {{ item.name }}
               <el-tag v-if="!item.onSale" size="small" type="info" effect="plain">已下架</el-tag>
             </div>
-            <div class="muted" v-if="item.spec">{{ item.spec }}</div>
+            <div class="muted">商品编码：{{ item.productCode || '—' }}</div>
+            <div class="muted">规格型号：{{ item.spec || '—' }}</div>
             <div class="muted">
               ¥{{ money(item.price) }} × {{ item.quantity }}
               · {{ item.checked ? '已勾选' : '未勾选' }}
@@ -122,6 +128,8 @@
         <div class="hint">合计只统计当前在售商品，未勾选商品也包含在内。</div>
       </template>
     </el-drawer>
+
+    <ProductDetailDrawer v-model="productDetailVisible" :product-id="productDetailId" />
   </div>
 </template>
 
@@ -130,6 +138,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api, getAdminUser } from '../api'
 import { money, time } from '../utils'
+import ProductDetailDrawer from '../components/ProductDetailDrawer.vue'
 
 const adminUser = getAdminUser()
 const isSales = Boolean(adminUser && adminUser.type === 'XS')
@@ -142,7 +151,15 @@ const pageSize = 10
 const loading = ref(false)
 const detailVisible = ref(false)
 const current = ref(null)
+const productDetailVisible = ref(false)
+const productDetailId = ref('')
 const filters = reactive({ keyword: '', salesId: '' })
+
+function openProduct(item) {
+  if (!item || !item.productId) return
+  productDetailId.value = String(item.productId)
+  productDetailVisible.value = true
+}
 
 function firstItem(row) {
   return (row.items && row.items[0]) || {}
@@ -235,6 +252,14 @@ onMounted(() => {
   gap: 12px;
   padding: 14px 0;
   border-bottom: 1px solid #f0ede5;
+}
+
+.cart-item-link {
+  cursor: pointer;
+}
+
+.cart-item-link:hover {
+  background: #faf8f3;
 }
 
 .cart-main {

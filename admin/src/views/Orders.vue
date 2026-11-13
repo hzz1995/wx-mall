@@ -177,11 +177,18 @@
 
         <el-divider content-position="left">商品</el-divider>
 
-        <div v-for="(item, index) in current.items" :key="index" class="order-item">
+        <div
+          v-for="(item, index) in current.items"
+          :key="index"
+          class="order-item order-item-link"
+          @click="openProduct(item)"
+        >
           <img v-if="item.imageUrl" :src="item.imageUrl" class="item-thumb" alt="" />
           <div v-else class="item-thumb thumb-empty">无图</div>
           <div class="item-main">
             <div>{{ item.name }}</div>
+            <div class="muted">商品编码：{{ item.productCode || '—' }}</div>
+            <div class="muted">规格型号：{{ item.spec || '—' }}</div>
             <div class="muted">¥{{ money(item.price) }} × {{ item.quantity }}</div>
           </div>
           <div class="amount">¥{{ money(item.price * item.quantity) }}</div>
@@ -197,6 +204,8 @@
         </div>
       </template>
     </el-drawer>
+
+    <ProductDetailDrawer v-model="productDetailVisible" :product-id="productDetailId" />
   </div>
 </template>
 
@@ -205,6 +214,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api, getAdminUser } from '../api'
 import { money, time, statusText, statusType } from '../utils'
+import ProductDetailDrawer from '../components/ProductDetailDrawer.vue'
 
 const isAdmin = computed(() => {
   const user = getAdminUser()
@@ -224,6 +234,14 @@ const shopList = ref([])
 
 const detailVisible = ref(false)
 const current = ref(null)
+const productDetailVisible = ref(false)
+const productDetailId = ref('')
+
+function openProduct(item) {
+  if (!item || !item.productId) return
+  productDetailId.value = String(item.productId)
+  productDetailVisible.value = true
+}
 
 function firstItem(row) {
   return (row.items && row.items[0]) || {}
@@ -478,6 +496,14 @@ onMounted(() => {
   gap: 12px;
   padding: 12px 0;
   border-bottom: 1px solid #f0ede5;
+}
+
+.order-item-link {
+  cursor: pointer;
+}
+
+.order-item-link:hover {
+  background: #faf8f3;
 }
 
 .item-thumb {

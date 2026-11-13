@@ -732,8 +732,10 @@ async function listOrders(query, staff) {
     db.collection('orders').where(where).orderBy('createdAt', 'desc').skip((page - 1) * pageSize).limit(pageSize).get()
   ])
 
+  const orders = listRes.data
+  await attachOrderProductCodes(orders)
   return {
-    list: await withOrderImageUrls(listRes.data.map(serializeOrder)),
+    list: await withOrderImageUrls(orders.map(serializeOrder)),
     total: countRes.total,
     page,
     pageSize
@@ -771,16 +773,20 @@ async function attachOrderProductCodes(orders) {
   const ids = []
   ;(orders || []).forEach(order => {
     ;(order.items || []).forEach(item => {
-      if (item.productId && !item.productCode) ids.push(item.productId)
+      if (item.productId && (!item.productCode || !item.spec)) ids.push(item.productId)
     })
   })
   if (!ids.length) return
   const productMap = await getProductsByIds(ids)
   ;(orders || []).forEach(order => {
-    order.items = (order.items || []).map(item => ({
-      ...item,
-      productCode: item.productCode || (productMap[item.productId] && productMap[item.productId].productCode) || ''
-    }))
+    order.items = (order.items || []).map(item => {
+      const product = productMap[item.productId]
+      return {
+        ...item,
+        productCode: item.productCode || (product && product.productCode) || '',
+        spec: item.spec || (product && product.spec) || ''
+      }
+    })
   })
 }
 
@@ -799,8 +805,16 @@ async function getOrder(id, staff) {
   if (staff.type === 'XS' && order.salesId !== staff._id) {
     throw new HttpError(403, '无权查看该订单')
   }
+  await attachOrderProductCodes([order])
   const [withUrl] = await withOrderImageUrls([serializeOrder(order)])
   return { order: withUrl }
+}
+
+async function getAdminProduct(id) {
+  const product = await getProductById(id)
+  if (!product) throw new HttpError(404, '商品不存在')
+  const [withUrl] = await withTempUrls([serializeProduct(product)])
+  return { product: withUrl }
 }
 
 async function updateOrderStatus(id, status) {
@@ -1979,6 +1993,7 @@ async function listCarts(staff, query) {
         return {
           productId: item.productId,
           name: product ? product.name : '商品已删除',
+          productCode: product ? product.productCode || '' : '',
           spec: product ? product.spec || '' : '',
           price: product ? Number(product.price) || 0 : 0,
           quantity: Number(item.quantity) || 0,
@@ -2243,6 +2258,7 @@ async function route({ method, path, query, headers, body }) {
   }
 
   if (resource === 'products') {
+    if (method === 'GET' && id) return getAdminProduct(id)
     if (!isAdmin && !isOps) throw new HttpError(403, '无权操作商品')
     if (method === 'GET' && !id) return listProducts(query)
     if (method === 'POST' && id === 'batch') return batchUpdateProducts(body, staff)

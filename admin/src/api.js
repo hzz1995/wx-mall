@@ -201,6 +201,9 @@ export const api = {
   products(params) {
     return request(`/products${toQuery(params)}`)
   },
+  product(id) {
+    return request(`/products/${id}`)
+  },
   createProduct(body) {
     return request('/products', { method: 'POST', body })
   },

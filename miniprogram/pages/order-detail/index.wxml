@@ -17,7 +17,7 @@
       <view class="status-sub" wx:if="{{order.status === 'DONE'}}">
         {{isCustomer ? '订单已提交，如需取消可在下方操作' : '订单已完成'}}
       </view>
-      <view class="status-sub" wx:elif="{{order.status === 'CLOSED'}}">该订单已结束，已停止供货流程</view>
+      <view class="status-sub" wx:elif="{{order.status === 'CLOSED'}}">该订单已结束，无法取消订单</view>
       <view class="status-sub" wx:else>该订单已取消</view>
     </view>
 
@@ -30,6 +30,7 @@
         </view>
         <view class="item-main">
           <view class="item-name">{{item.name}}</view>
+          <view class="item-spec" wx:if="{{item.spec}}">规格型号：{{item.spec}}</view>
           <view class="item-price">¥{{item.priceText}} × {{item.quantity}}</view>
         </view>
         <view class="item-total price"><text class="yen">¥</text>{{item.lineTotalText}}</view>

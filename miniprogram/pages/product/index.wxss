@@ -157,7 +157,7 @@
 }
 
 .attrs-title {
-  font-size: 26rpx;
+  font-size: 28rpx;
   font-weight: 600;
   color: var(--ink);
   padding: 20rpx 0 10rpx;
@@ -166,9 +166,10 @@
 .attr-row {
   display: flex;
   align-items: flex-start;
-  padding: 16rpx 0;
+  padding: 18rpx 0;
   border-top: 1rpx dashed var(--line);
-  font-size: 25rpx;
+  font-size: 27rpx;
+  line-height: 1.5;
 }
 
 .attr-label {

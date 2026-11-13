@@ -21,6 +21,7 @@
         </view>
         <view class="item-main">
           <view class="item-name">{{item.name}}</view>
+          <view class="item-spec" wx:if="{{item.spec}}">规格型号：{{item.spec}}</view>
           <view class="item-spec">¥{{item.priceText}} × {{item.quantity}}</view>
           <view class="qty-stepper" wx:if="{{editable}}">
             <view

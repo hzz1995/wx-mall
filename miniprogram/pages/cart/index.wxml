@@ -77,7 +77,12 @@
             <view class="item-name" data-id="{{item.productId}}" bindtap="goProduct">{{item.name}}</view>
             <view class="item-remove" data-id="{{item.productId}}" data-name="{{item.name}}" bindtap="removeItem">移除</view>
           </view>
-          <view class="item-spec" wx:if="{{item.spec}}">{{item.spec}}</view>
+          <view class="item-attrs" wx:if="{{item.spec || item.validUntil || item.productionDate || item.origin}}">
+            <view class="item-attr" wx:if="{{item.spec}}">规格型号：{{item.spec}}</view>
+            <view class="item-attr" wx:if="{{item.validUntil}}">有效期至：{{item.validUntil}}</view>
+            <view class="item-attr" wx:if="{{item.productionDate}}">生产年份：{{item.productionDate}}</view>
+            <view class="item-attr" wx:if="{{item.origin}}">产地：{{item.origin}}</view>
+          </view>
           <view class="off-sale" wx:if="{{!item.onSale}}">已下架</view>
           <view class="item-bottom">
             <view class="price item-price"><text class="yen">¥</text>{{item.priceText}}</view>

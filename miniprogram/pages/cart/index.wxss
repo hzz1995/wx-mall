@@ -155,10 +155,13 @@
   text-decoration: underline;
 }
 
-.item-spec {
-  margin-top: 4rpx;
-  font-size: 21rpx;
-  line-height: 1.4;
+.item-attrs {
+  margin-top: 6rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 2rpx;
+  font-size: 24rpx;
+  line-height: 1.5;
   color: var(--muted);
 }
 

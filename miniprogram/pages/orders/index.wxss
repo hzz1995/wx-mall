@@ -157,6 +157,13 @@
   color: var(--muted);
 }
 
+.order-spec {
+  margin-top: 6rpx;
+  font-size: 23rpx;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
 .order-amount {
   font-size: 32rpx;
   flex: 0 0 auto;
