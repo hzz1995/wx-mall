@@ -56,23 +56,25 @@
         wx:key="productId"
       >
         <view
-          class="check {{item.checked ? 'checked' : ''}} {{!item.onSale ? 'disabled' : ''}}"
+          class="check-hit"
           data-id="{{item.productId}}"
           data-checked="{{item.checked}}"
           data-onsale="{{item.onSale}}"
           bindtap="toggleItem"
         >
-          <view wx:if="{{item.checked}}" class="check-mark">✓</view>
+          <view class="check {{item.checked ? 'checked' : ''}} {{!item.onSale ? 'disabled' : ''}}">
+            <view wx:if="{{item.checked}}" class="check-mark">✓</view>
+          </view>
         </view>
 
-        <view class="thumb">
+        <view class="thumb" data-id="{{item.productId}}" bindtap="goProduct">
           <image wx:if="{{item.cover}}" class="thumb-img" src="{{item.cover}}" mode="aspectFill" />
           <view wx:else class="thumb-fallback">{{item.initial}}</view>
         </view>
 
         <view class="item-main">
           <view class="item-top">
-            <view class="item-name">{{item.name}}</view>
+            <view class="item-name" data-id="{{item.productId}}" bindtap="goProduct">{{item.name}}</view>
             <view class="item-remove" data-id="{{item.productId}}" data-name="{{item.name}}" bindtap="removeItem">移除</view>
           </view>
           <view class="item-spec" wx:if="{{item.spec}}">{{item.spec}}</view>

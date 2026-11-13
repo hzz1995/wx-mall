@@ -23,6 +23,13 @@ function isCloudFile(value) {
   return typeof value === 'string' && value.indexOf('cloud://') === 0
 }
 
+function toYearText(value) {
+  if (value == null || value === '') return ''
+  const text = String(value).trim()
+  const match = text.match(/(19|20)\d{2}/)
+  return match ? match[0] : text
+}
+
 function serializeProduct(product) {
   if (!product) return null
   const categoryIds = Array.isArray(product.categoryIds) && product.categoryIds.length
@@ -41,8 +48,8 @@ function serializeProduct(product) {
     spec: product.spec || '',
     unit: product.unit || '',
     productCode: product.productCode || '',
-    validUntil: product.validUntil || '',
-    productionDate: product.productionDate || '',
+    validUntil: toYearText(product.validUntil),
+    productionDate: toYearText(product.productionDate),
     origin: product.origin || '',
     createdAt: toTimestamp(product.createdAt),
     updatedAt: toTimestamp(product.updatedAt)

@@ -29,7 +29,7 @@
       <input
         class="search-input"
         value="{{keyword}}"
-        placeholder="搜索名称 / 规格 / 生产日期 / 产地"
+        placeholder="搜索名称 / 规格 / 生产年份 / 产地"
         placeholder-class="search-placeholder"
         bindinput="onKeywordInput"
       />
@@ -62,7 +62,7 @@
             <text wx:if="{{item.spec && (item.validUntil || item.productionDate || item.origin)}}"> · </text>
             <text wx:if="{{item.validUntil}}">有效期至 {{item.validUntil}}</text>
             <text wx:if="{{item.validUntil && (item.productionDate || item.origin)}}"> · </text>
-            <text wx:if="{{item.productionDate}}">{{item.productionDate}}</text>
+            <text wx:if="{{item.productionDate}}">生产年份 {{item.productionDate}}</text>
             <text wx:if="{{item.productionDate && item.origin}}"> · </text>
             <text wx:if="{{item.origin}}">{{item.origin}}</text>
           </view>

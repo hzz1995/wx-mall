@@ -72,6 +72,15 @@
   margin-bottom: 20rpx;
 }
 
+.check-hit {
+  flex: 0 0 72rpx;
+  width: 72rpx;
+  height: 72rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .check {
   flex: 0 0 40rpx;
   width: 40rpx;

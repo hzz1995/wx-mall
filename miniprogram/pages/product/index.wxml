@@ -89,7 +89,7 @@
           <text class="attr-value">{{product.validUntil}}</text>
         </view>
         <view class="attr-row" wx:if="{{product.productionDate}}">
-          <text class="attr-label">生产日期</text>
+          <text class="attr-label">生产年份</text>
           <text class="attr-value">{{product.productionDate}}</text>
         </view>
         <view class="attr-row" wx:if="{{product.origin}}">

@@ -163,7 +163,7 @@ const FIELD_LABELS = {
   videos: '视频',
   description: '商品详情',
   spec: '规格型号',
-  productionDate: '生产日期',
+  productionDate: '生产年份',
   origin: '产地',
   sort: '排序',
   status: '状态',

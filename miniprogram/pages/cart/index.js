@@ -183,15 +183,47 @@ Page({
     wx.navigateTo({ url: '/pages/shops/index' })
   },
 
-  async toggleItem(event) {
+  goProduct(event) {
+    const id = event.currentTarget.dataset.id
+    if (!id) return
+    wx.navigateTo({ url: `/pages/product/index?id=${id}` })
+  },
+
+  cartSummary(items) {
+    const validItems = items.filter(item => item.onSale)
+    const selected = validItems.filter(item => item.checked)
+    const selectedCount = selected.reduce(
+      (total, item) => total + (Number(item.quantity) || 0),
+      0
+    )
+    const totalAmount = selected.reduce(
+      (total, item) => total + (Number(item.price) || 0) * (Number(item.quantity) || 0),
+      0
+    )
+    return {
+      selectedCount,
+      totalText: formatPrice(totalAmount),
+      allChecked: validItems.length > 0 && validItems.every(item => item.checked)
+    }
+  },
+
+  toggleItem(event) {
     const { id, checked, onsale } = event.currentTarget.dataset
     if (!onsale) return
-    try {
-      await api.call('updateCartItem', this.withShop({ productId: id, checked: !checked }))
-      this.load()
-    } catch (err) {
+    const index = this.data.items.findIndex(item => item.productId === id)
+    if (index < 0) return
+    const next = !checked
+    const items = this.data.items.map(item => (
+      item.productId === id ? { ...item, checked: next } : item
+    ))
+    this.setData({
+      [`items[${index}].checked`]: next,
+      ...this.cartSummary(items)
+    })
+    api.call('updateCartItem', this.withShop({ productId: id, checked: next })).catch(err => {
       api.toastError(err)
-    }
+      this.load()
+    })
   },
 
   async changeQuantity(event) {
@@ -275,14 +307,20 @@ Page({
     })
   },
 
-  async toggleAll() {
+  toggleAll() {
     if (!this.data.items.length) return
-    try {
-      await api.call('setCartCheckedAll', this.withShop({ checked: !this.data.allChecked }))
-      this.load()
-    } catch (err) {
+    const checked = !this.data.allChecked
+    const items = this.data.items.map(item => (
+      item.onSale ? { ...item, checked } : item
+    ))
+    this.setData({
+      items,
+      ...this.cartSummary(items)
+    })
+    api.call('setCartCheckedAll', this.withShop({ checked })).catch(err => {
       api.toastError(err)
-    }
+      this.load()
+    })
   },
 
   checkout() {

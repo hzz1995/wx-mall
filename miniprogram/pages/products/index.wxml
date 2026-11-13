@@ -123,13 +123,10 @@
             <view class="list-name">{{item.name}}</view>
             <view class="list-meta">已售 {{item.sales || 0}} 件</view>
             <view class="list-extra" wx:if="{{item.spec || item.validUntil || item.productionDate || item.origin}}">
-              <text wx:if="{{item.spec}}">{{item.spec}}</text>
-              <text wx:if="{{item.spec && (item.validUntil || item.productionDate || item.origin)}}"> · </text>
-              <text wx:if="{{item.validUntil}}">有效期至 {{item.validUntil}}</text>
-              <text wx:if="{{item.validUntil && (item.productionDate || item.origin)}}"> · </text>
-              <text wx:if="{{item.productionDate}}">{{item.productionDate}}</text>
-              <text wx:if="{{item.productionDate && item.origin}}"> · </text>
-              <text wx:if="{{item.origin}}">{{item.origin}}</text>
+              <view class="list-extra-item" wx:if="{{item.spec}}">规格型号：{{item.spec}}</view>
+              <view class="list-extra-item" wx:if="{{item.validUntil}}">有效期至：{{item.validUntil}}</view>
+              <view class="list-extra-item" wx:if="{{item.productionDate}}">生产年份：{{item.productionDate}}</view>
+              <view class="list-extra-item" wx:if="{{item.origin}}">产地：{{item.origin}}</view>
             </view>
             <view class="list-tags">
               <text class="tag-soft">在售</text>

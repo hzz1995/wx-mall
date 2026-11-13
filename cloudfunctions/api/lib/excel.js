@@ -117,13 +117,34 @@ function buildOrderExport(orders) {
   }
 }
 
-function parseSheetRows(buffer) {
+function parseSheetRows(buffer, options) {
   const XLSX = getXlsx()
   const workbook = XLSX.read(buffer, { type: 'buffer', raw: true })
-  const sheetName = workbook.SheetNames && workbook.SheetNames[0]
-  if (!sheetName) throw new Error('导入文件没有工作表')
+  const names = workbook.SheetNames || []
+  if (!names.length) throw new Error('导入文件没有工作表')
+  const rawIndex = Number(options && options.sheetIndex)
+  const requested = Number.isInteger(rawIndex) && rawIndex >= 0 ? rawIndex : 0
+  let sheetIndex = Math.min(requested, names.length - 1)
+  const hint = String((options && options.sheetName) || '').trim()
+  if (hint) {
+    const aliases = [hint]
+    if (hint === '全量') aliases.push('全部')
+    if (hint === '部分') aliases.push('导入部分')
+    let matched = -1
+    for (const alias of aliases) {
+      matched = names.findIndex(name => String(name).includes(alias))
+      if (matched >= 0) break
+    }
+    if (matched >= 0) sheetIndex = matched
+  }
+  const sheetName = names[sheetIndex]
   const sheet = workbook.Sheets[sheetName]
-  return XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true })
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true })
+  rows.sheetName = sheetName
+  rows.sheetIndex = sheetIndex
+  rows.sheetCount = names.length
+  rows.sheetNames = names
+  return rows
 }
 
 module.exports = { buildOrderExport, parseSheetRows }

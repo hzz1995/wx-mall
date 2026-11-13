@@ -92,8 +92,8 @@ function auditProductSnapshot(product) {
     spec: product.spec || '',
     unit: product.unit || '',
     productCode: product.productCode || '',
-    validUntil: product.validUntil || '',
-    productionDate: product.productionDate || '',
+    validUntil: normalizeYear(product.validUntil),
+    productionDate: normalizeYear(product.productionDate),
     origin: product.origin || '',
     sort: Number(product.sort) || 0,
     status: product.status || 'ON',
@@ -188,6 +188,12 @@ function parseInitialSales(value) {
   return sales
 }
 
+function normalizeYear(value) {
+  const text = cleanText(value, 20)
+  const match = text.match(/(19|20)\d{2}/)
+  return match ? match[0] : text
+}
+
 function normalizeMedia(value, label, maxCount) {
   if (!Array.isArray(value)) throw new HttpError(400, `${label}格式不正确`)
   if (value.length > maxCount) throw new HttpError(400, `最多上传 ${maxCount} 个${label}`)
@@ -268,10 +274,10 @@ async function validateProductPayload(body, partial) {
     data.productCode = cleanText(body.productCode, 50)
   }
   if (!partial || body.validUntil !== undefined) {
-    data.validUntil = cleanText(body.validUntil, 20)
+    data.validUntil = normalizeYear(body.validUntil)
   }
   if (!partial || body.productionDate !== undefined) {
-    data.productionDate = cleanText(body.productionDate, 20)
+    data.productionDate = normalizeYear(body.productionDate)
   }
   if (!partial || body.origin !== undefined) {
     data.origin = cleanText(body.origin, 50)
@@ -1084,9 +1090,51 @@ function parseImportPrice(value, label) {
   return cents
 }
 
-function formatImportValue(field, value) {
+function parseImportYear(value, label) {
+  if (value instanceof Date) {
+    const year = value.getFullYear()
+    if (year >= 1900 && year <= 2100) return String(year)
+    throw new Error(`${label}需填写年份，例如 2026`)
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    if (Number.isInteger(value) && value >= 1900 && value <= 2100) return String(value)
+    const excelDate = new Date(Math.round((value - 25569) * 86400000))
+    const year = excelDate.getUTCFullYear()
+    if (year >= 1900 && year <= 2100) return String(year)
+    throw new Error(`${label}需填写年份，例如 2026`)
+  }
+  const text = String(value == null ? '' : value).trim()
+  const match = text.match(/(19|20)\d{2}/)
+  if (!match) throw new Error(`${label}需填写年份，例如 2026`)
+  return match[0]
+}
+
+function parseImportCategories(value, categoryByName) {
+  const names = String(value == null ? '' : value)
+    .split(/[,，、;；|]/)
+    .map(name => name.trim())
+    .filter(Boolean)
+  const ids = []
+  names.forEach(name => {
+    const category = categoryByName.get(name)
+    if (!category) throw new Error(`分类「${name}」不存在`)
+    const id = String(category._id)
+    if (!ids.includes(id)) ids.push(id)
+  })
+  if (ids.length > 20) throw new Error('一个商品最多选择 20 个分类')
+  return ids
+}
+
+function formatImportValue(field, value, categoryNameById) {
   if (field === 'price' || field === 'originalPrice') {
     return `¥${(Number(value || 0) / 100).toFixed(2)}`
+  }
+  if (field === 'categoryIds') {
+    const ids = Array.isArray(value) ? value : (value ? [value] : [])
+    if (!ids.length) return '未分类'
+    return ids
+      .map(id => (categoryNameById && categoryNameById.get(String(id))) || String(id))
+      .join('、')
   }
   return String(value == null || value === '' ? '—' : value)
 }
@@ -1104,8 +1152,19 @@ async function importProducts(body, staff) {
   if (buffer.length > 5 * 1024 * 1024) throw new HttpError(400, '导入文件不能超过 5MB')
 
   let rawRows
+  const rawSheetIndex = Number(body.sheetIndex)
+  const sheetIndex = Number.isInteger(rawSheetIndex) && rawSheetIndex >= 0 ? rawSheetIndex : 0
+  const sheetHint = cleanText(body.sheetName, 50)
+  let sheetInfo = { sheetName: '', sheetIndex, sheetCount: 1 }
   try {
-    rawRows = parseSheetRows(buffer)
+    const parsedRows = parseSheetRows(buffer, { sheetIndex, sheetName: sheetHint })
+    sheetInfo = {
+      sheetName: parsedRows.sheetName || '',
+      sheetIndex: parsedRows.sheetIndex == null ? sheetIndex : parsedRows.sheetIndex,
+      sheetCount: parsedRows.sheetCount || 1,
+      sheetNames: parsedRows.sheetNames || []
+    }
+    rawRows = parsedRows
   } catch (err) {
     throw new HttpError(400, `无法解析导入文件：${err.message}`)
   }
@@ -1126,12 +1185,28 @@ async function importProducts(body, staff) {
         seenCodes.add(productCode)
       }
     })
-    return { totalRows: rawRows.length, duplicateCodes }
+    return {
+      totalRows: rawRows.length,
+      duplicateCodes,
+      sheetName: sheetInfo.sheetName,
+      sheetIndex: sheetInfo.sheetIndex,
+      sheetCount: sheetInfo.sheetCount,
+      sheetNames: sheetInfo.sheetNames
+    }
   }
+  const categoryRes = await db.collection('categories').limit(200).get()
+  const categoryList = categoryRes.data || []
+  const categoryByName = new Map()
+  const categoryNameById = new Map()
+  categoryList.forEach(category => {
+    const name = String(category.name || '').trim()
+    const id = String(category._id)
+    if (name && !categoryByName.has(name)) categoryByName.set(name, category)
+    categoryNameById.set(id, name || id)
+  })
   const defaultCategoryId = String(body.defaultCategoryId || '').trim()
-  if (defaultCategoryId && (body.rowOffset === undefined || Number(body.rowOffset) === 0)) {
-    const category = await db.collection('categories').doc(defaultCategoryId).get().catch(() => null)
-    if (!category || !category.data) throw new HttpError(400, '默认分类不存在')
+  if (defaultCategoryId && !categoryList.some(category => String(category._id) === defaultCategoryId)) {
+    throw new HttpError(400, '默认分类不存在')
   }
 
   const errors = []
@@ -1172,6 +1247,32 @@ async function importProducts(body, staff) {
       const price = importCell(row, ['售价', '价格', 'price'])
       if (!isEmptyImportCell(price)) {
         changes.price = parseImportPrice(price, '售价')
+      }
+      const categories = importCell(row, ['分类', '商品分类', 'category', 'categories'])
+      if (!isEmptyImportCell(categories)) {
+        const categoryIds = parseImportCategories(categories, categoryByName)
+        if (categoryIds.length) {
+          changes.categoryIds = categoryIds
+          changes.categoryId = categoryIds[0]
+        }
+      }
+      const description = importCell(row, ['商品详情', '详情', '描述', 'description'])
+      if (!isEmptyImportCell(description)) changes.description = cleanText(description, 2000)
+      const origin = importCell(row, ['产地', 'origin'])
+      if (!isEmptyImportCell(origin)) changes.origin = cleanText(origin, 50)
+      const productionDate = importCell(row, ['生产年份', '生产日期', 'productionYear', 'productionDate'])
+      if (!isEmptyImportCell(productionDate)) {
+        changes.productionDate = parseImportYear(productionDate, '生产年份')
+      }
+      const validUntil = importCell(row, ['有效期至', '有效期', 'validUntil'])
+      if (!isEmptyImportCell(validUntil)) {
+        changes.validUntil = parseImportYear(validUntil, '有效期至')
+      }
+      const sort = importCell(row, ['排序', 'sort'])
+      if (!isEmptyImportCell(sort)) changes.sort = parseSort(sort)
+      const initialSales = importCell(row, ['初始化已售数量', '初始已售', 'initialSales'])
+      if (!isEmptyImportCell(initialSales)) {
+        changes.initialSales = parseInitialSales(initialSales)
       }
       prepared.push({ rowNo, productCode, nameValue, changes })
     } catch (err) {
@@ -1244,7 +1345,14 @@ async function importProducts(body, staff) {
       spec: '规格',
       unit: '单位',
       originalPrice: '原价',
-      price: '售价'
+      price: '售价',
+      categoryIds: '分类',
+      description: '商品详情',
+      origin: '产地',
+      productionDate: '生产年份',
+      validUntil: '有效期至',
+      sort: '排序',
+      initialSales: '初始化已售数量'
     }
 
     if (!product) {
@@ -1257,8 +1365,13 @@ async function importProducts(body, staff) {
         return
       }
       const createChanges = { ...item.changes, productCode: item.productCode }
+      if (!Array.isArray(createChanges.categoryIds) || !createChanges.categoryIds.length) {
+        createChanges.categoryIds = defaultCategoryId ? [defaultCategoryId] : []
+        createChanges.categoryId = defaultCategoryId || ''
+      }
       const changeText = Object.keys(createChanges)
-        .map(field => `${labels[field]}：— → ${formatImportValue(field, createChanges[field])}`)
+        .filter(field => field !== 'categoryId')
+        .map(field => `${labels[field]}：— → ${formatImportValue(field, createChanges[field], categoryNameById)}`)
         .join('；')
       preview.push({
         row: item.rowNo,
@@ -1287,7 +1400,17 @@ async function importProducts(body, staff) {
       return
     }
     const changeText = fields
-      .map(field => `${labels[field]}：${formatImportValue(field, product[field])} → ${formatImportValue(field, item.changes[field])}`)
+      .filter(field => field !== 'categoryId')
+      .map(field => {
+        const oldValue = field === 'categoryIds'
+          ? (
+            Array.isArray(product.categoryIds) && product.categoryIds.length
+              ? product.categoryIds
+              : (product.categoryId ? [product.categoryId] : [])
+          )
+          : product[field]
+        return `${labels[field]}：${formatImportValue(field, oldValue, categoryNameById)} → ${formatImportValue(field, item.changes[field], categoryNameById)}`
+      })
       .join('；')
     preview.push({
       row: item.rowNo,
@@ -1302,6 +1425,10 @@ async function importProducts(body, staff) {
 
   const summary = {
     total: rawRows.length,
+    sheetName: sheetInfo.sheetName,
+    sheetIndex: sheetInfo.sheetIndex,
+    sheetCount: sheetInfo.sheetCount,
+    sheetNames: sheetInfo.sheetNames,
     processedRows: selectedRows.length,
     matched,
     created: createdCount,
@@ -1333,9 +1460,12 @@ async function importProducts(body, staff) {
   for (let start = 0; start < updateChunk.length; start += 20) {
     await Promise.all(updateChunk.slice(start, start + 20).map(async task => {
       try {
-        await db.collection('products').doc(String(task.product._id)).update({
-          data: { ...task.changes, updatedAt: now }
-        })
+        const updateData = { ...task.changes, updatedAt: now }
+        if (task.changes.initialSales !== undefined) {
+          const delta = (Number(task.changes.initialSales) || 0) - (Number(task.product.initialSales) || 0)
+          if (delta !== 0) updateData.sales = _.inc(delta)
+        }
+        await db.collection('products').doc(String(task.product._id)).update({ data: updateData })
         applied += 1
       } catch (err) {
         chunkErrors.push({ row: task.rowNo, message: err.message || '更新失败' })
@@ -1346,6 +1476,10 @@ async function importProducts(body, staff) {
     await Promise.all(createChunk.slice(start, start + 20).map(async task => {
       try {
         const changes = task.changes
+        const categoryIds = Array.isArray(changes.categoryIds) && changes.categoryIds.length
+          ? changes.categoryIds
+          : (defaultCategoryId ? [defaultCategoryId] : [])
+        const initialSales = changes.initialSales == null ? 0 : changes.initialSales
         await db.collection('products').add({
           data: {
             productCode: changes.productCode,
@@ -1354,16 +1488,19 @@ async function importProducts(body, staff) {
             unit: changes.unit || '',
             originalPrice: changes.originalPrice == null ? 0 : changes.originalPrice,
             price: changes.price,
-            categoryIds: defaultCategoryId ? [defaultCategoryId] : [],
-            categoryId: defaultCategoryId || '',
+            categoryIds,
+            categoryId: categoryIds[0] || '',
             images: [],
             videos: [],
-            description: '',
+            description: changes.description || '',
+            origin: changes.origin || '',
+            productionDate: changes.productionDate || '',
+            validUntil: changes.validUntil || '',
             status: 'ON',
             code: randomCode(),
-            initialSales: 0,
-            sales: 0,
-            sort: 0,
+            initialSales,
+            sales: initialSales,
+            sort: changes.sort == null ? 0 : changes.sort,
             createdAt: now,
             updatedAt: now
           }
@@ -1379,6 +1516,7 @@ async function importProducts(body, staff) {
       ...auditBase(staff, 'PRODUCT_UPDATE', 'product', 'import', body.filename || '商品导入'),
       before: null,
       after: {
+        sheetIndex,
         rowOffset,
         rowLimit,
         processedRows: selectedRows.length,
@@ -1390,6 +1528,10 @@ async function importProducts(body, staff) {
   }
   return {
     dryRun: false,
+    sheetName: sheetInfo.sheetName,
+    sheetIndex: sheetInfo.sheetIndex,
+    sheetCount: sheetInfo.sheetCount,
+    sheetNames: sheetInfo.sheetNames,
     rowOffset,
     rowLimit,
     processedRows: selectedRows.length,

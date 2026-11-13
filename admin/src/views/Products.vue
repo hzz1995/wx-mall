@@ -24,7 +24,8 @@
           :disabled="!selectedProducts.length"
           @click="openBatchEdit"
         >批量修改</el-button>
-        <el-button v-if="canManageProducts" type="primary" plain @click="openImport">导入商品</el-button>
+        <el-button v-if="canManageProducts" type="primary" plain @click="openImport('full')">导入全量商品</el-button>
+        <el-button v-if="canManageProducts" type="primary" plain @click="openImport('partial')">导入部分商品</el-button>
         <el-button v-if="canManageProducts" type="primary" @click="openCreate">新增商品</el-button>
       </div>
     </div>
@@ -188,18 +189,18 @@
         <el-form-item label="有效期至">
           <el-date-picker
             v-model="form.validUntil"
-            type="date"
-            value-format="YYYY-MM-DD"
-            placeholder="选择有效期截止日期"
+            type="year"
+            value-format="YYYY"
+            placeholder="选择有效期截止年份"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="生产日期">
+        <el-form-item label="生产年份">
           <el-date-picker
             v-model="form.productionDate"
-            type="date"
-            value-format="YYYY-MM-DD"
-            placeholder="选择生产日期"
+            type="year"
+            value-format="YYYY"
+            placeholder="选择生产年份"
             style="width: 100%"
           />
         </el-form-item>
@@ -252,8 +253,8 @@
             <el-date-picker
               v-else-if="batchField === 'validUntil' || batchField === 'productionDate'"
               v-model="row.value"
-              type="date"
-              value-format="YYYY-MM-DD"
+              type="year"
+              value-format="YYYY"
               size="small"
               style="width: 100%"
             />
@@ -285,7 +286,7 @@
     </el-dialog>
     <el-dialog
       v-model="importDialogVisible"
-      title="导入商品"
+      :title="importMode === 'full' ? '导入全量商品' : '导入部分商品'"
       width="760px"
       destroy-on-close
       :close-on-click-modal="false"
@@ -299,7 +300,7 @@
         <span class="muted">{{ importFileName || '支持 .xlsx / .xls / .csv' }}</span>
       </div>
       <div class="import-category">
-        <span class="import-category-label">新商品默认分类（可不选）</span>
+        <span class="import-category-label">新商品默认分类（分类列为空时使用）</span>
         <el-select
           v-model="importCategoryId"
           clearable
@@ -311,7 +312,19 @@
         </el-select>
       </div>
       <div class="form-hint">
-        优先按「商品编码」匹配；编码未找到但商品名称唯一匹配无编码商品时，会补写商品编码；仍不存在则新增商品。新商品不选择默认分类时会先处于“未分类”。商品名称、规格、单位、原价、售价为空时不更新；原价、售价按“元”填写。一次最多 2000 行；商品编码建议在 Excel 中设为文本，避免前导零丢失。
+        <template v-if="importMode === 'full'">
+          读取 Excel 第 2 个 Sheet（全量商品）；单 Sheet 模板会自动读取第 1 个。优先按「商品编码」匹配；编码未找到但商品名称唯一匹配无编码商品时，会补写商品编码；仍不存在则新增商品。商品名称、规格、单位、原价、售价、分类、商品详情、产地、生产年份、有效期至、排序、初始化已售数量为空时不更新；原价、售价按“元”填写，生产年份和有效期至按四位年份填写；分类可填多个，用逗号分隔，需与后台分类名称一致。新商品不选择分类时会先处于“未分类”。一次最多 2000 行；商品编码建议在 Excel 中设为文本，避免前导零丢失。
+        </template>
+        <template v-else>
+          读取 Excel 第 1 个 Sheet（导入部分商品），只修改表格中有值的字段，适合按商品编码批量调整售价、原价、有效期至、生产年份、排序、初始化已售数量等；空字段不更新，匹配规则与新商品处理同全量导入。一次最多 2000 行；商品编码建议在 Excel 中设为文本。
+        </template>
+      </div>
+
+      <div
+        v-if="importMeta && importMeta.sheetNames && importMeta.sheetNames.length"
+        class="form-hint"
+      >
+        工作簿 Sheet：{{ importMeta.sheetNames.join(' / ') }}
       </div>
 
       <div v-if="importLoading" class="import-loading">正在解析文件…</div>
@@ -319,7 +332,7 @@
 
       <el-alert
         v-if="importMeta && !importApplying"
-        :title="`共 ${importMeta.totalRows} 行，确认后按每批 10 条执行`"
+        :title="`已读取「${importMeta.sheetName || (importMode === 'full' ? '全量商品' : '部分商品')}」：共 ${importMeta.totalRows} 行，确认后按每批 10 条执行`"
         :type="importMeta.duplicateCodes && importMeta.duplicateCodes.length ? 'warning' : 'success'"
         :closable="false"
         show-icon
@@ -390,7 +403,7 @@ const batchFields = [
   { value: 'price', label: '售价' },
   { value: 'originalPrice', label: '原价（划线价）' },
   { value: 'validUntil', label: '有效期至' },
-  { value: 'productionDate', label: '生产日期' },
+  { value: 'productionDate', label: '生产年份' },
   { value: 'origin', label: '产地' },
   { value: 'spec', label: '规格型号' },
   { value: 'unit', label: '单位' },
@@ -400,6 +413,7 @@ const batchFields = [
 const batchField = ref('validUntil')
 const batchRows = ref([])
 const importDialogVisible = ref(false)
+const importMode = ref('full')
 const importFileInput = ref(null)
 const importFileName = ref('')
 const importCategoryId = ref('')
@@ -776,7 +790,8 @@ async function remove(row) {
   }
 }
 
-function openImport() {
+function openImport(mode = 'full') {
+  importMode.value = mode === 'partial' ? 'partial' : 'full'
   importDialogVisible.value = true
   importMeta.value = null
   importErrors.value = []
@@ -788,6 +803,10 @@ function openImport() {
 
 function chooseImportFile() {
   if (importFileInput.value) importFileInput.value.click()
+}
+
+function importSheetIndex() {
+  return importMode.value === 'full' ? 1 : 0
 }
 
 function readFileAsBase64(file) {
@@ -844,6 +863,8 @@ async function onImportFile(event) {
     importMeta.value = await requestImport({
       fileBase64: base64,
       filename: file.name,
+      sheetIndex: importSheetIndex(),
+      sheetName: importMode.value === 'full' ? '全量' : '部分',
       metaOnly: true
     })
   } catch (err) {
@@ -875,6 +896,8 @@ async function applyImport() {
       const data = await requestImport({
         fileBase64: importBase64.value,
         filename: importFileName.value,
+        sheetIndex: importSheetIndex(),
+        sheetName: importMode.value === 'full' ? '全量' : '部分',
         defaultCategoryId: importCategoryId.value,
         dryRun: false,
         rowOffset,
@@ -915,15 +938,21 @@ async function applyImport() {
 
 function downloadTemplate() {
   const rows = [
-    ['商品编码', '商品名称', '规格', '单位', '原价', '售价'],
-    ['A001', '示例商品', '500g/袋', '袋', '39.90', '35.90']
+    [
+      '商品编码', '商品名称', '规格', '单位', '原价', '售价', '分类', '商品详情',
+      '产地', '生产年份', '有效期至', '排序', '初始化已售数量'
+    ],
+    [
+      'A001', '示例商品', '500g/袋', '袋', '39.90', '35.90', '', '示例商品详情',
+      '贵州', '2026', '2028', '0', '100'
+    ]
   ]
   const csv = '\ufeff' + rows.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n')
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = '商品导入模板.csv'
+  link.download = importMode.value === 'full' ? '商品导入模板_全量.csv' : '商品导入模板_部分.csv'
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
