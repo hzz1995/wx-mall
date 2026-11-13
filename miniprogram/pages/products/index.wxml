@@ -62,6 +62,8 @@
     </view>
   </view>
 
+  <view class="top-spacer" style="height: {{railTop}}px;"></view>
+
   <view wx:if="{{loading && !loaded}}" class="loading-wrap">
     <view class="skeleton-row" wx:for="{{skeletonItems}}" wx:key="*this">
       <view class="skeleton-thumb shimmer"></view>

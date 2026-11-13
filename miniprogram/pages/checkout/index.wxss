@@ -107,13 +107,14 @@
   color: #c9c7bd;
 }
 
-.qty-value {
+.qty-input {
   width: 66rpx;
   height: 52rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding: 0;
+  box-sizing: border-box;
+  text-align: center;
   font-size: 26rpx;
+  line-height: 52rpx;
   background: #ffffff;
   border-left: 1rpx solid var(--line);
   border-right: 1rpx solid var(--line);

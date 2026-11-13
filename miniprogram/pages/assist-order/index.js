@@ -234,11 +234,35 @@ Page({
   changeQty(event) {
     const productId = event.currentTarget.dataset.productId
     const delta = Number(event.currentTarget.dataset.delta) || 0
-    const selected = this.data.selected
-      .map(item => {
-        if (item.productId !== productId) return item
-        return { ...item, quantity: Math.min(99, Math.max(1, item.quantity + delta)) }
-      })
+    const item = this.data.selected.find(entry => entry.productId === productId)
+    if (!item) return
+    this.setQuantity(productId, item.quantity + delta)
+  },
+
+  onQuantityInput(event) {
+    const productId = event.currentTarget.dataset.productId
+    const raw = String(event.detail.value == null ? '' : event.detail.value).trim()
+    if (!productId) return
+    const key = `${productId}:${raw}`
+    const now = Date.now()
+    if (this._lastQuantityKey === key && now - this._lastQuantityAt < 800) return
+    this._lastQuantityKey = key
+    this._lastQuantityAt = now
+    const quantity = Number(raw)
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+      wx.showToast({ title: '数量需在 1-99 之间', icon: 'none' })
+      this.setSelected(this.data.selected.slice())
+      return
+    }
+    this.setQuantity(productId, quantity)
+  },
+
+  setQuantity(productId, quantity) {
+    const next = Math.min(99, Math.max(1, Number(quantity) || 1))
+    const selected = this.data.selected.map(item => {
+      if (item.productId !== productId) return item
+      return { ...item, quantity: next }
+    })
     this.setSelected(selected)
   },
 

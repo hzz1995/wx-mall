@@ -3,8 +3,10 @@
 }
 
 .top-fixed {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 7;
   background: #f8f2e7;
 }

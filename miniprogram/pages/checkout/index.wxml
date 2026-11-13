@@ -31,7 +31,15 @@
               catchtap="changeQuantity"
               hover-class="qty-btn-active"
             >−</view>
-            <view class="qty-value">{{item.quantity}}</view>
+            <input
+              class="qty-input"
+              type="number"
+              value="{{item.quantity}}"
+              data-product-id="{{item.productId}}"
+              data-quantity="{{item.quantity}}"
+              bindblur="onQuantityInput"
+              bindconfirm="onQuantityInput"
+            />
             <view
               class="qty-btn {{item.quantity >= 99 ? 'disabled' : ''}}"
               data-product-id="{{item.productId}}"

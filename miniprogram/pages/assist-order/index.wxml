@@ -43,7 +43,15 @@
         </view>
         <view class="stepper">
           <view class="step-btn" data-product-id="{{item.productId}}" data-delta="-1" catchtap="changeQty">−</view>
-          <view class="step-value">{{item.quantity}}</view>
+          <input
+            class="step-input"
+            type="number"
+            value="{{item.quantity}}"
+            data-product-id="{{item.productId}}"
+            data-quantity="{{item.quantity}}"
+            bindblur="onQuantityInput"
+            bindconfirm="onQuantityInput"
+          />
           <view class="step-btn" data-product-id="{{item.productId}}" data-delta="1" catchtap="changeQty">+</view>
         </view>
         <view class="selected-price">¥{{item.priceText}}</view>

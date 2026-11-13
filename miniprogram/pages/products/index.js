@@ -33,7 +33,7 @@ Page({
     qtyProduct: {},
     qtyValue: 1,
     showTop: false,
-    railTop: 88,
+    railTop: 170,
     skeletonItems: [1, 2, 3],
     loading: true,
     loadingMore: false,

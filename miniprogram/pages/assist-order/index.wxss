@@ -195,10 +195,14 @@
   background: #faf8f2;
 }
 
-.step-value {
-  min-width: 54rpx;
+.step-input {
+  width: 66rpx;
+  height: 50rpx;
+  padding: 0;
+  box-sizing: border-box;
   text-align: center;
-  font-size: 23rpx;
+  font-size: 24rpx;
+  line-height: 50rpx;
 }
 
 .selected-price {
